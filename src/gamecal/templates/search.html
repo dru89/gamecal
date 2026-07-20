@@ -8,7 +8,8 @@
 
 {% if q and not error %}
 <h2>Results for “{{ q }}”</h2>
-<table>
+<table class="aligned">
+  <colgroup><col class="c-cover"><col><col class="c-action"></colgroup>
   {% for g in results %}
   <tr>
     <td>{% if g.cover_url %}<img class="cover" src="{{ g.cover_url }}" alt="">{% endif %}</td>
@@ -19,7 +20,7 @@
       {% endif %}
       <div class="muted">{{ g.platforms | join(' · ') }}</div>
     </td>
-    <td>
+    <td class="action">
       {% if g.slug in tracked %}
       <span class="pill">tracked</span>
       {% else %}
