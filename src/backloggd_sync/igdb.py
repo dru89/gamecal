@@ -1,8 +1,8 @@
 """IGDB client (Twitch client-credentials auth).
 
 Two jobs: map Steam appids to IGDB games via external_games, and pull
-release_dates. IGDB models fuzzy dates explicitly via the `category`
-field on release_dates — only category 0 (YYYYMMMMDD) is calendar-worthy.
+release_dates. IGDB models fuzzy dates explicitly via `date_format` on
+release_dates — only 0 (exact YYYY-MM-DD) is calendar-worthy.
 """
 
 import time
@@ -14,9 +14,9 @@ from .config import IgdbConfig
 AUTH_URL = "https://id.twitch.tv/oauth2/token"
 API = "https://api.igdb.com/v4"
 
-# external_games.category for Steam
-STEAM_CATEGORY = 1
-# release_dates.category values that carry an exact date
+# external_games.external_game_source for Steam
+STEAM_SOURCE = 1
+# release_dates.date_format value for an exact YYYY-MM-DD date
 EXACT_DATE = 0
 
 
@@ -74,7 +74,7 @@ class Igdb:
             rows = self._query(
                 "external_games",
                 f"fields uid, game.id, game.slug, game.name;"
-                f" where category = {STEAM_CATEGORY} & uid = ({uids});"
+                f" where external_game_source = {STEAM_SOURCE} & uid = ({uids});"
                 f" limit 500;",
             )
             for row in rows:
@@ -149,8 +149,8 @@ class Igdb:
             rows = self._query(
                 "release_dates",
                 f"fields game.id, game.slug, game.name, platform.name,"
-                f" date, human, category, region;"
-                f" where game = ({ids}) & category = {EXACT_DATE} & date != null;"
+                f" date, human, date_format, release_region;"
+                f" where game = ({ids}) & date_format = {EXACT_DATE} & date != null;"
                 f" limit 500;",
             )
             for row in rows:
@@ -162,7 +162,7 @@ class Igdb:
                         "platform": (row.get("platform") or {}).get("name", "?"),
                         "date_unix": row["date"],
                         "human": row.get("human"),
-                        "region": row.get("region"),
+                        "region": row.get("release_region"),
                     }
                 )
         return out
