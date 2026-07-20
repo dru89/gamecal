@@ -84,13 +84,28 @@ def releases(ctx: Ctx, show_all: bool):
         if unmatched:
             click.echo(f"note: {len(unmatched)} appids had no IGDB match: {unmatched}", err=True)
 
+        # Owned-but-unreleased (preorders, early access): Steam drops purchases
+        # from the wishlist, so these need their own path into the pipeline.
+        library = ctx.ledger.latest_observations("steam_library")
+        owned_appids = [int(k) for k in library if int(k) not in set(appids)]
+        owned_map = igdb.games_for_steam_appids(owned_appids) if owned_appids else {}
+        unreleased = (
+            igdb.unreleased_games([m["igdb_id"] for m in owned_map.values()])
+            if owned_map
+            else {}
+        )
+        owned_tracked = [m for m in owned_map.values() if m["igdb_id"] in unreleased]
+
         watched = _watch_slugs(ctx)
         by_slug = igdb.games_by_slugs(watched) if watched else {}
         missing = sorted(set(watched) - set(by_slug))
         if missing:
             click.echo(f"note: watched slugs not found on IGDB: {missing}", err=True)
 
-        games = {m["igdb_id"]: m for m in [*mapping.values(), *by_slug.values()]}
+        games = {
+            m["igdb_id"]: m
+            for m in [*mapping.values(), *owned_tracked, *by_slug.values()]
+        }
         if not games:
             raise click.ClickException(
                 "nothing to look up — run pull-steam and/or `watch add <slug>` first"
@@ -100,7 +115,11 @@ def releases(ctx: Ctx, show_all: bool):
             "igdb_game",
             [
                 {**m, "external_id": m["slug"], "source": src}
-                for src, group in (("steam", mapping.values()), ("watch", by_slug.values()))
+                for src, group in (
+                    ("steam", mapping.values()),
+                    ("owned", owned_tracked),
+                    ("watch", by_slug.values()),
+                )
                 for m in group
             ],
         )
@@ -121,7 +140,10 @@ def releases(ctx: Ctx, show_all: bool):
                 continue
             rows.append(f"  {day}  {d['title']}  [{d['platform']}]")
         click.echo("\n".join(rows) if rows else "  (no upcoming exact-dated releases)")
-        return f"{len(games)} games ({len(mapping)} steam, {len(by_slug)} watched), {len(dates)} dated releases"
+        return (
+            f"{len(games)} games ({len(mapping)} wishlist, {len(owned_tracked)} owned-unreleased,"
+            f" {len(by_slug)} watched), {len(dates)} dated releases"
+        )
 
     _job(ctx, "releases", run)
 

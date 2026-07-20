@@ -107,6 +107,33 @@ class Igdb:
                 }
         return out
 
+    def unreleased_games(self, igdb_ids: list[int]) -> dict[int, dict]:
+        """Subset of the given games IGDB considers not fully released:
+        alpha/beta/early access, or no past first_release_date. Used to keep
+        owned-but-unreleased games (preorders, EA) in the pipeline without
+        dragging in the whole library."""
+        now = int(time.time())
+        out: dict[int, dict] = {}
+        for i in range(0, len(igdb_ids), 100):
+            batch = igdb_ids[i : i + 100]
+            ids = ",".join(str(x) for x in batch)
+            rows = self._query(
+                "games",
+                f"fields id, slug, name, game_status, first_release_date;"
+                f" where id = ({ids})"
+                f" & (game_status = (2,3,4) | first_release_date = null"
+                f" | first_release_date > {now});"
+                f" limit 500;",
+            )
+            for row in rows:
+                out[row["id"]] = {
+                    "igdb_id": row["id"],
+                    "slug": row["slug"],
+                    "title": row["name"],
+                    "game_status": row.get("game_status"),
+                }
+        return out
+
     def search(self, query: str, limit: int = 20) -> list[dict]:
         """Full-text game search. Returns [{igdb_id, slug, title,
         first_release_date, platforms, cover_url}]."""
@@ -146,13 +173,20 @@ class Igdb:
         for i in range(0, len(igdb_ids), 100):
             batch = igdb_ids[i : i + 100]
             ids = ",".join(str(x) for x in batch)
-            rows = self._query(
-                "release_dates",
-                f"fields game.id, game.slug, game.name, platform.name,"
-                f" date, human, date_format, release_region;"
-                f" where game = ({ids}) & date_format = {EXACT_DATE} & date != null;"
-                f" limit 500;",
-            )
+            rows: list[dict] = []
+            offset = 0
+            while True:
+                page = self._query(
+                    "release_dates",
+                    f"fields game.id, game.slug, game.name, platform.name,"
+                    f" date, human, date_format, release_region;"
+                    f" where game = ({ids}) & date_format = {EXACT_DATE} & date != null;"
+                    f" limit 500; offset {offset};",
+                )
+                rows.extend(page)
+                if len(page) < 500:
+                    break
+                offset += 500
             for row in rows:
                 out.append(
                     {
