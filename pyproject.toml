@@ -1,10 +1,10 @@
 [project]
-name = "backloggd-sync"
+name = "gamecal"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Drew Hays", email = "drewshays@gmail.com" }
+    { name = "Drew Hays", email = "drew@hays.fm" }
 ]
 requires-python = ">=3.14"
 dependencies = [
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-backloggd-sync = "backloggd_sync:main"
+gamecal = "gamecal:main"
 
 [build-system]
 requires = ["uv_build>=0.11.29,<0.12.0"]

@@ -45,7 +45,7 @@ class Config:
 
 
 def load(path: str | os.PathLike | None = None) -> Config:
-    cfg_path = Path(path or os.environ.get("BACKLOGGD_SYNC_CONFIG", DEFAULT_PATH))
+    cfg_path = Path(path or os.environ.get("GAMECAL_CONFIG", DEFAULT_PATH))
     raw: dict = {}
     if cfg_path.exists():
         with open(cfg_path, "rb") as f:
@@ -53,7 +53,7 @@ def load(path: str | os.PathLike | None = None) -> Config:
     else:
         print(f"warning: no config file at {cfg_path}, using empty config", file=sys.stderr)
 
-    data_dir = Path(os.environ.get("BACKLOGGD_SYNC_DATA", cfg_path.parent / "data"))
+    data_dir = Path(os.environ.get("GAMECAL_DATA", cfg_path.parent / "data"))
     data_dir.mkdir(parents=True, exist_ok=True)
 
     return Config(

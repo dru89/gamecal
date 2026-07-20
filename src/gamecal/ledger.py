@@ -31,11 +31,11 @@ CREATE TABLE IF NOT EXISTS observations (
 );
 CREATE INDEX IF NOT EXISTS idx_obs_source_ext ON observations(source, external_id);
 
--- Writes we performed against an external system (calendar, backloggd).
+-- Writes we performed against an external system (e.g. the calendar).
 CREATE TABLE IF NOT EXISTS actions (
     id INTEGER PRIMARY KEY,
     run_id INTEGER NOT NULL REFERENCES runs(id),
-    target TEXT NOT NULL,          -- gcal | backloggd
+    target TEXT NOT NULL,          -- e.g. gcal
     external_id TEXT NOT NULL,
     action TEXT NOT NULL,          -- create | update | delete
     payload TEXT NOT NULL,

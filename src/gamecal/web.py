@@ -86,7 +86,7 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
 
 
 def create_app(cfg: Config) -> FastAPI:
-    app = FastAPI(title="backloggd-sync")
+    app = FastAPI(title="gamecal")
     ledger = Ledger(cfg.ledger_path, check_same_thread=False)
 
     def render(template: str, **ctx) -> HTMLResponse:

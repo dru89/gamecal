@@ -54,7 +54,7 @@ def _job(ctx: Ctx, name: str, fn) -> None:
         click.echo(
             f"{name}: circuit breaker tripped "
             f"({ctx.ledger.breaker_failures(name)} consecutive failures). "
-            f"Run `backloggd-sync breaker reset {name}` after investigating.",
+            f"Run `gamecal breaker reset {name}` after investigating.",
             err=True,
         )
         sys.exit(2)
