@@ -11,3 +11,8 @@ client_secret = ""
 
 [sync]
 platforms = ["PC (Microsoft Windows)"]  # IGDB platform names to keep release dates for
+
+[notify]
+# Failure pushes. Pick a long random topic name (it is the only auth on ntfy.sh)
+# and subscribe to it in the ntfy iOS app. Leave empty to disable.
+ntfy_url = ""

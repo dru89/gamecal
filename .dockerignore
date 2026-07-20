@@ -1,0 +1,5 @@
+.git/
+.venv/
+data/
+config.toml
+__pycache__/

@@ -31,6 +31,24 @@ def cli(ctx: click.Context, cfg_path: str | None):
     ctx.obj = Ctx(cfg_path)
 
 
+def _notify(ctx: Ctx, title: str, message: str) -> None:
+    """Best-effort push via ntfy; never lets notification failure mask the
+    original error."""
+    if not ctx.cfg.notify.ntfy_url:
+        return
+    try:
+        import httpx
+
+        httpx.post(
+            ctx.cfg.notify.ntfy_url,
+            content=message,
+            headers={"Title": title, "Priority": "high", "Tags": "warning"},
+            timeout=10,
+        )
+    except Exception as e:
+        click.echo(f"warning: ntfy push failed: {e!r}", err=True)
+
+
 def _job(ctx: Ctx, name: str, fn) -> None:
     if ctx.ledger.breaker_tripped(name, BREAKER_LIMIT):
         click.echo(
@@ -47,6 +65,14 @@ def _job(ctx: Ctx, name: str, fn) -> None:
         ctx.ledger.finish_run(run_id, "failed", repr(e))
         ctx.ledger.breaker_record(name, ok=False)
         ctx.ledger.add_attention("sync_failure", f"{name} failed: {e!r}")
+        failures = ctx.ledger.breaker_failures(name)
+        tripped = failures >= BREAKER_LIMIT
+        _notify(
+            ctx,
+            f"{name} {'DISABLED' if tripped else 'failed'}",
+            f"{e!r}\n({failures}/{BREAKER_LIMIT} consecutive failures"
+            + (", job disabled until breaker reset)" if tripped else ")"),
+        )
         raise
     ctx.ledger.finish_run(run_id, "ok", detail)
     ctx.ledger.breaker_record(name, ok=True)

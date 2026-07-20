@@ -27,10 +27,16 @@ class SyncConfig:
 
 
 @dataclass
+class NotifyConfig:
+    ntfy_url: str = ""  # e.g. https://ntfy.sh/<your-private-topic>
+
+
+@dataclass
 class Config:
     steam: SteamConfig
     igdb: IgdbConfig
     sync: SyncConfig
+    notify: NotifyConfig
     data_dir: Path
 
     @property
@@ -54,5 +60,6 @@ def load(path: str | os.PathLike | None = None) -> Config:
         steam=SteamConfig(**raw.get("steam", {})),
         igdb=IgdbConfig(**raw.get("igdb", {})),
         sync=SyncConfig(**raw.get("sync", {})),
+        notify=NotifyConfig(**raw.get("notify", {})),
         data_dir=data_dir,
     )
