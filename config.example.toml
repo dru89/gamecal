@@ -1,0 +1,13 @@
+# Copy to config.toml and fill in. config.toml is gitignored.
+
+[steam]
+api_key = ""      # https://steamcommunity.com/dev/apikey
+steam_id = ""     # your steamID64 (76561198...)
+
+[igdb]
+# Twitch developer app: https://dev.twitch.tv/console
+client_id = ""
+client_secret = ""
+
+[sync]
+platforms = ["PC (Microsoft Windows)"]  # IGDB platform names to keep release dates for
