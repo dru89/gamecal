@@ -68,7 +68,16 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
         groups: dict = {}
         for r in entry["releases"]:
             groups.setdefault(r["day"], []).append(short_platform(r["platform"]))
-        entry["date_groups"] = sorted(groups.items())
+        # Year only when it disambiguates: past years, or >12 months out.
+        entry["date_groups"] = [
+            (
+                day.strftime("%b %d, %Y")
+                if day.year < today.year or (day - today).days > 365
+                else day.strftime("%b %d"),
+                plats,
+            )
+            for day, plats in sorted(groups.items())
+        ]
         pref = gcal_mod._platform_pref(ledger, slug, g)
         picked = gcal_mod._pick_release(entry["releases"], pref, allowlist, today)
         past = [r for r in entry["releases"] if r["day"] < today]

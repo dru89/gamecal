@@ -95,7 +95,7 @@
       {{ g.title }}
       {% if g.releases | length > 1 %}
         <div class="muted">
-          {% for day, plats in g.date_groups %}{{ day.strftime('%b %d, %Y') if day.year != today.year else day.strftime('%b %d') }} — {{ plats | join(', ') }}{% if not loop.last %} · {% endif %}{% endfor %}
+          {% for label, plats in g.date_groups %}<span class="dgroup">{{ label }}: {{ plats | join(', ') }}</span>{% endfor %}
         </div>
       {% endif %}
     </td>
