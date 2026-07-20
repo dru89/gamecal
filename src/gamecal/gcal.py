@@ -32,7 +32,7 @@ PC = "PC (Microsoft Windows)"
 # -- auth / calendar bootstrap ------------------------------------------------
 
 
-def get_service(cfg: Config):
+def get_service(cfg: Config, interactive: bool = True):
     token_path = cfg.data_dir / "google_token.json"
     client_path = cfg.data_dir / "google_client.json"
     creds = None
@@ -42,6 +42,9 @@ def get_service(cfg: Config):
         creds.refresh(Request())
         token_path.write_text(creds.to_json())
     if not creds or not creds.valid:
+        if not interactive:
+            # web/cron context: never try to open a consent browser
+            raise RuntimeError("no valid Google token; run `gamecal calendar` once")
         if not client_path.exists():
             raise RuntimeError(f"missing {client_path} (Google OAuth desktop client)")
         flow = InstalledAppFlow.from_client_secrets_file(client_path, SCOPES)
@@ -105,52 +108,117 @@ def _pick_release(releases: list[dict], platform_pref: str | None,
     return pool[0], platform_pref is not None
 
 
-def desired_events(ledger: Ledger, allowlist: list[str]) -> list[dict]:
-    games = ledger.tracked_games()
-    by_game: dict[int, list[dict]] = {}
-    for rel in ledger.run_observations("igdb_release"):
-        by_game.setdefault(rel["igdb_id"], []).append(rel)
+def event_for_game(ledger: Ledger, slug: str, g: dict, releases: list[dict],
+                   allowlist: list[str], today: date) -> dict | None:
+    """The desired calendar event for one game, or None if no event is
+    warranted (nothing upcoming, or already out on the preferred platform)."""
+    pref = _platform_pref(ledger, slug, g)
+    picked = _pick_release(releases, pref, allowlist, today)
+    if not picked:
+        return None
+    rel, fallback = picked
+    day = datetime.fromtimestamp(rel["date_unix"], tz=timezone.utc).date()
 
+    lines = [f"https://backloggd.com/games/{slug}/"]
+    if g.get("steam_appid"):
+        lines.append(f"https://store.steampowered.com/app/{g['steam_appid']}/")
+    elif g.get("store_url"):
+        lines.append(g["store_url"])
+    lines.append(f"https://www.igdb.com/games/{slug}")
+    lines.append("")
+    if fallback:
+        lines.append(f"No {pref} date yet — earliest is {rel['platform']}.")
+    seen = set()
+    for r in sorted(releases, key=lambda r: r["date_unix"]):
+        d = datetime.fromtimestamp(r["date_unix"], tz=timezone.utc).date()
+        if (d, r["platform"]) in seen:
+            continue
+        seen.add((d, r["platform"]))
+        lines.append(f"{d.isoformat()}  {r['platform']}")
+
+    return {
+        "summary": f"🎮 {g['title']}",
+        "start": {"date": day.isoformat()},
+        "end": {"date": (day + timedelta(days=1)).isoformat()},
+        "description": "\n".join(lines),
+        "transparency": "transparent",
+        "extendedProperties": {
+            "private": {MARKER: "1", "bls_id": str(g["igdb_id"])}
+        },
+    }
+
+
+def releases_by_game(ledger: Ledger) -> dict[int, list[dict]]:
+    by_game: dict[int, list[dict]] = {}
+    for rel in ledger.current_releases():
+        by_game.setdefault(rel["igdb_id"], []).append(rel)
+    return by_game
+
+
+def desired_events(ledger: Ledger, allowlist: list[str]) -> list[dict]:
+    by_game = releases_by_game(ledger)
     today = datetime.now(timezone.utc).date()
     out = []
-    for slug, g in games.items():
-        pref = _platform_pref(ledger, slug, g)
-        picked = _pick_release(by_game.get(g["igdb_id"], []), pref, allowlist, today)
-        if not picked:
-            continue
-        rel, fallback = picked
-        day = datetime.fromtimestamp(rel["date_unix"], tz=timezone.utc).date()
-
-        lines = [f"https://backloggd.com/games/{slug}/"]
-        if g.get("steam_appid"):
-            lines.append(f"https://store.steampowered.com/app/{g['steam_appid']}/")
-        elif g.get("store_url"):
-            lines.append(g["store_url"])
-        lines.append(f"https://www.igdb.com/games/{slug}")
-        lines.append("")
-        if fallback:
-            lines.append(f"No {pref} date yet — earliest is {rel['platform']}.")
-        seen = set()
-        for r in sorted(by_game.get(g["igdb_id"], []), key=lambda r: r["date_unix"]):
-            d = datetime.fromtimestamp(r["date_unix"], tz=timezone.utc).date()
-            if (d, r["platform"]) in seen:
-                continue
-            seen.add((d, r["platform"]))
-            lines.append(f"{d.isoformat()}  {r['platform']}")
-
-        out.append(
-            {
-                "summary": f"🎮 {g['title']}",
-                "start": {"date": day.isoformat()},
-                "end": {"date": (day + timedelta(days=1)).isoformat()},
-                "description": "\n".join(lines),
-                "transparency": "transparent",
-                "extendedProperties": {
-                    "private": {MARKER: "1", "bls_id": str(g["igdb_id"])}
-                },
-            }
-        )
+    for slug, g in ledger.tracked_games().items():
+        ev = event_for_game(ledger, slug, g, by_game.get(g["igdb_id"], []), allowlist, today)
+        if ev:
+            out.append(ev)
     return out
+
+
+def upsert_single(cfg: Config, ledger: Ledger, slug: str) -> str:
+    """Best-effort instant calendar update for one game (web Track path).
+    Requires an existing Google token and calendar id; the nightly reconcile
+    remains the authority and will converge regardless."""
+    cal_id = ledger.get("gcal:calendar_id")
+    if not cal_id:
+        return "no calendar yet"
+    g = ledger.tracked_games().get(slug)
+    if not g:
+        return "not tracked"
+    today = datetime.now(timezone.utc).date()
+    ev = event_for_game(
+        ledger, slug, g,
+        releases_by_game(ledger).get(g["igdb_id"], []), cfg.sync.platforms, today,
+    )
+    service = get_service(cfg, interactive=False)
+    existing = _find_event(service, cal_id, str(g["igdb_id"]))
+    if ev is None:
+        return "no upcoming date"
+    if existing is None:
+        service.events().insert(calendarId=cal_id, body=ev).execute()
+        return f"event created for {ev['start']['date']}"
+    if _differs(existing, ev):
+        service.events().patch(calendarId=cal_id, eventId=existing["id"], body=ev).execute()
+        return f"event updated to {ev['start']['date']}"
+    return "event already current"
+
+
+def remove_single(cfg: Config, ledger: Ledger, igdb_id: int) -> str:
+    """Delete a game's future event immediately (web unwatch path)."""
+    cal_id = ledger.get("gcal:calendar_id")
+    if not cal_id:
+        return "no calendar"
+    service = get_service(cfg, interactive=False)
+    existing = _find_event(service, cal_id, str(igdb_id))
+    if not existing:
+        return "no event"
+    start = existing.get("start", {}).get("date")
+    if start and date.fromisoformat(start) >= datetime.now(timezone.utc).date():
+        service.events().delete(calendarId=cal_id, eventId=existing["id"]).execute()
+        return "event removed"
+    return "past event kept"
+
+
+def _find_event(service, cal_id: str, bls_id: str) -> dict | None:
+    resp = (
+        service.events()
+        .list(calendarId=cal_id,
+              privateExtendedProperty=[f"{MARKER}=1", f"bls_id={bls_id}"])
+        .execute()
+    )
+    items = [e for e in resp.get("items", []) if e.get("status") != "cancelled"]
+    return items[0] if items else None
 
 
 # -- reconcile ----------------------------------------------------------------

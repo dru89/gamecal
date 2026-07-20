@@ -52,9 +52,10 @@ CREATE TABLE IF NOT EXISTS kv (
 CREATE TABLE IF NOT EXISTS attention (
     id INTEGER PRIMARY KEY,
     created_at TEXT NOT NULL,
-    kind TEXT NOT NULL,            -- gone_quiet | sync_failure | drift
+    kind TEXT NOT NULL,            -- playing | gone_quiet | released | sync_failure
     external_id TEXT,
     message TEXT NOT NULL,
+    url TEXT,
     resolved_at TEXT
 );
 """
@@ -71,6 +72,10 @@ class Ledger:
         self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        try:  # migration for ledgers created before the url column existed
+            self.conn.execute("ALTER TABLE attention ADD COLUMN url TEXT")
+        except sqlite3.OperationalError:
+            pass
 
     # -- runs ---------------------------------------------------------------
 
@@ -135,6 +140,23 @@ class Ledger:
         ).fetchall()
         return [json.loads(r["payload"]) for r in rows]
 
+    def current_releases(self) -> list[dict]:
+        """Current release rows, scoped per game: for each igdb_id, the rows
+        from the most recent run that observed that game. Full releases runs
+        refresh every tracked game; a single-game web sync refreshes just one
+        without hiding the rest."""
+        rows = self.conn.execute(
+            """
+            SELECT o.payload FROM observations o
+            JOIN (SELECT json_extract(payload, '$.igdb_id') AS gid, MAX(run_id) AS mr
+                  FROM observations WHERE source = 'igdb_release'
+                  GROUP BY gid) m
+              ON json_extract(o.payload, '$.igdb_id') = m.gid AND o.run_id = m.mr
+            WHERE o.source = 'igdb_release'
+            """
+        ).fetchall()
+        return [json.loads(r["payload"]) for r in rows]
+
     # -- actions ------------------------------------------------------------
 
     def record_actions(self, run_id: int, target: str, items: list[tuple[str, str, dict]]) -> None:
@@ -176,12 +198,13 @@ class Ledger:
     # -- attention ----------------------------------------------------------
 
     def tracked_games(self) -> dict[str, dict]:
-        """Current tracked set, by slug: the last releases-run snapshot, plus
-        watch-sourced games added since (web Track button), minus watch games
+        """Current tracked set, by slug: the last releases-run snapshot
+        (source igdb_game, recorded only by full releases runs), plus games
+        tracked from the web since (source igdb_game_web), minus watch games
         whose kv entry was removed."""
         games = {g["slug"]: g for g in self.run_observations("igdb_game")}
-        for slug, g in self.latest_observations("igdb_game").items():
-            if slug not in games and g.get("source") == "watch":
+        for slug, g in self.latest_observations("igdb_game_web").items():
+            if slug not in games:
                 games[slug] = g
         return {
             slug: g
@@ -189,12 +212,28 @@ class Ledger:
             if g.get("source") != "watch" or self.get(f"watch:{slug}") is not None
         }
 
-    def add_attention(self, kind: str, message: str, external_id: str | None = None) -> None:
+    def add_attention(self, kind: str, message: str,
+                      external_id: str | None = None, url: str | None = None) -> None:
         self.conn.execute(
-            "INSERT INTO attention (created_at, kind, external_id, message) VALUES (?, ?, ?, ?)",
-            (now(), kind, external_id, message),
+            "INSERT INTO attention (created_at, kind, external_id, message, url)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (now(), kind, external_id, message, url),
         )
         self.conn.commit()
+
+    def attention_seen(self, external_id: str, within_days: int | None = None) -> bool:
+        """True if an item with this external_id exists (open or resolved),
+        optionally only counting items created in the last N days."""
+        row = self.conn.execute(
+            "SELECT MAX(created_at) AS c FROM attention WHERE external_id = ?",
+            (external_id,),
+        ).fetchone()
+        if not row["c"]:
+            return False
+        if within_days is None:
+            return True
+        cutoff = datetime.now(timezone.utc).timestamp() - within_days * 86400
+        return datetime.fromisoformat(row["c"]).timestamp() > cutoff
 
     def open_attention(self) -> list[sqlite3.Row]:
         return self.conn.execute(

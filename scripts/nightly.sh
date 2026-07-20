@@ -5,5 +5,6 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 docker compose run --rm --no-deps job pull-steam
+docker compose run --rm --no-deps job signals
 docker compose run --rm --no-deps job releases
 docker compose run --rm --no-deps job calendar

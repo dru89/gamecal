@@ -9,10 +9,23 @@
     <input type="hidden" name="item_id" value="{{ a['id'] }}">
     <button title="Dismiss">✕</button>
   </form>
-  [{{ a['kind'] }}] {{ a['message'] }}
+  [{{ a['kind'] }}] {{ a['message'] }}{% if a['url'] %} <a href="{{ a['url'] }}">open ↗</a>{% endif %}
   <time class="ts" datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time>
 </div>
 {% endfor %}
+{% endif %}
+
+{% if playing %}
+<h2>Playing now</h2>
+<table>
+  {% for p in playing %}
+  <tr>
+    <td class="date muted"><time datetime="{{ p.last_iso }}">{{ p.last_iso }}</time></td>
+    <td><a href="https://store.steampowered.com/app/{{ p.external_id }}/">{{ p.title }}</a></td>
+    <td><span class="pill">{{ "%.0f" | format(p.playtime_minutes / 60) }}h</span></td>
+  </tr>
+  {% endfor %}
+</table>
 {% endif %}
 
 <h2>Upcoming</h2>

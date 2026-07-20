@@ -27,6 +27,14 @@ shared SQLite ledger, so manual runs and scheduled runs are the same thing.
 - **Reconciliation, not append.** Events are keyed by IGDB id in private
   extended properties. Dates that slip get patched; untracked games get
   their future events deleted; past events stay as history.
+- **Backlog signals.** A nightly `signals` job turns Steam playtime into
+  curation nudges on the site: recently played -> "mark it Playing,"
+  30+ days idle -> "completed or shelved?", tracked release passed ->
+  "it's out — move it along." Each links to the game's page; dismiss with
+  one click. Nothing writes to Backloggd — the automation is the noticing.
+- **Instant adds.** Tracking a game from the web UI fetches its dates and
+  pushes the calendar event immediately; the nightly reconcile remains the
+  authority.
 - **Circuit breakers + ntfy.** Three consecutive failures disable a job
   until you reset it, with push notifications via [ntfy](https://ntfy.sh)
   if configured.

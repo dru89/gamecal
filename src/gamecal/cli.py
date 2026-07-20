@@ -6,6 +6,7 @@ failures and the job refuses to run until `breaker reset`.
 """
 
 import sys
+import time
 from datetime import datetime, timezone
 
 import click
@@ -341,6 +342,93 @@ def calendar(ctx: Ctx, dry_run: bool):
         return counts
 
     _job(ctx, "calendar", run)
+
+
+@cli.command()
+@click.pass_obj
+def signals(ctx: Ctx):
+    """Derive backlog nudges from Steam playtime and release dates.
+
+    playing:    played in the last 10 days -> "mark it Playing on Backloggd"
+                (once per game per 45 days)
+    gone_quiet: 30-75 days idle after >=3h played -> "completed or shelved?"
+                (once per game per play-era, keyed on last_played)
+    released:   a tracked game's date passed within 7 days -> "it's out"
+    """
+    from . import gcal as gcal_mod
+
+    def run(run_id: int) -> str:
+        led = ctx.ledger
+        now_ts = time.time()
+        slug_by_appid = {
+            int(g["steam_appid"]): slug
+            for slug, g in led.tracked_games().items()
+            if g.get("steam_appid")
+        }
+        added = 0
+
+        for g in led.latest_observations("steam_library").values():
+            appid = int(g["external_id"])
+            rt, pt = g.get("last_played") or 0, g.get("playtime_minutes") or 0
+            if not rt:
+                continue
+            days = (now_ts - rt) / 86400
+            title = g.get("title") or f"steam app {appid}"
+            slug = slug_by_appid.get(appid)
+            url = (
+                f"https://backloggd.com/games/{slug}/"
+                if slug
+                else f"https://store.steampowered.com/app/{appid}/"
+            )
+            hours = pt / 60
+            if days <= 10 and pt >= 60:
+                key = f"playing:{appid}"
+                if not led.attention_seen(key, within_days=45):
+                    led.add_attention(
+                        "playing",
+                        f"{title} — recently played ({hours:.0f}h total)."
+                        f" Mark it Playing on Backloggd?",
+                        key, url,
+                    )
+                    added += 1
+            elif 30 <= days <= 75 and pt >= 180:
+                key = f"gone-quiet:{appid}:{rt}"
+                if not led.attention_seen(key):
+                    last = datetime.fromtimestamp(rt, tz=timezone.utc).date()
+                    led.add_attention(
+                        "gone_quiet",
+                        f"{title} has gone quiet — last played {last},"
+                        f" {hours:.0f}h total. Completed or shelved?",
+                        key, url,
+                    )
+                    added += 1
+
+        today = datetime.now(timezone.utc).date()
+        by_game = gcal_mod.releases_by_game(led)
+        for slug, g in led.tracked_games().items():
+            pref = gcal_mod._platform_pref(led, slug, g)
+            rels = by_game.get(g["igdb_id"], [])
+            if pref:
+                pool = [r for r in rels if r["platform"] == pref]
+            else:
+                allow = ctx.cfg.sync.platforms
+                pool = [r for r in rels if not allow or r["platform"] in allow]
+            for r in sorted(pool, key=lambda r: r["date_unix"], reverse=True):
+                d = datetime.fromtimestamp(r["date_unix"], tz=timezone.utc).date()
+                if 0 <= (today - d).days <= 7:
+                    key = f"released:{g['igdb_id']}:{d.isoformat()}"
+                    if not led.attention_seen(key):
+                        led.add_attention(
+                            "released",
+                            f"{g['title']} is out ({d.strftime('%b %d')},"
+                            f" {r['platform']}) — move it along on Backloggd.",
+                            key, f"https://backloggd.com/games/{slug}/",
+                        )
+                        added += 1
+                    break
+        return f"{added} new attention items"
+
+    _job(ctx, "signals", run)
 
 
 @cli.command("notify-test")
