@@ -46,7 +46,11 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
     for slug, g in games.items():
         seen_slugs.add(slug)
         dates = sorted(by_game.get(g["igdb_id"], []), key=lambda r: r["date_unix"])
-        entry = {**g, "watched": slug in watched, "releases": []}
+        links = {"backloggd": f"https://backloggd.com/games/{slug}/"}
+        if g.get("steam_appid"):
+            links["steam"] = f"https://store.steampowered.com/app/{g['steam_appid']}/"
+        links["igdb"] = f"https://www.igdb.com/games/{slug}"
+        entry = {**g, "watched": slug in watched, "links": links, "releases": []}
         future = []
         seen = set()
         for rel in dates:

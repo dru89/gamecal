@@ -72,7 +72,7 @@
       {{ g.next.day.strftime('%b %d, %Y') }}
     </td>
     <td>
-      <a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a>
+      {{ g.title }}
       {% if g.releases | length > 1 %}
         <div class="muted">
           {% for r in g.releases %}{{ r.platform }} {{ r.day.strftime('%b %d') }}{% if not loop.last %} · {% endif %}{% endfor %}
@@ -81,6 +81,9 @@
     </td>
     <td><span class="pill">{{ g.next.platform }}</span></td>
     <td><span class="pill">{{ g.source }}</span></td>
+    <td class="links">
+      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
+    </td>
     <td>
       {% if g.watched %}
       <form method="post" action="/unwatch">
@@ -101,8 +104,11 @@
 <table>
   {% for g in undated %}
   <tr>
-    <td><a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a></td>
+    <td>{{ g.title }}</td>
     <td><span class="pill">{{ g.source }}</span></td>
+    <td class="links">
+      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
+    </td>
     <td>
       {% if g.watched %}
       <form method="post" action="/unwatch">
@@ -125,8 +131,11 @@
   {% for g in released %}
   <tr>
     <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
-    <td><a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a></td>
+    <td>{{ g.title }}</td>
     <td><span class="pill">{{ g.last.platform }}</span></td>
+    <td class="links">
+      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
+    </td>
   </tr>
   {% endfor %}
 </table>
