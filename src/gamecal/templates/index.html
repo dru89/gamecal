@@ -144,11 +144,10 @@
 </table>
 {% endif %}
 
-{% if released %}
-<h2>Released</h2>
+{% macro released_rows(items) %}
 <table class="aligned t-games">
   {{ game_cols() }}
-  {% for g in released %}
+  {% for g in items %}
   <tr>
     <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
     <td class="title">{{ g.title }}</td>
@@ -159,6 +158,17 @@
   </tr>
   {% endfor %}
 </table>
+{% endmacro %}
+
+{% if released %}
+<h2>Released</h2>
+{{ released_rows(released) }}
+{% if released_more %}
+<details class="more">
+  <summary>Show {{ released_more | length }} more</summary>
+  {{ released_rows(released_more) }}
+</details>
+{% endif %}
 {% endif %}
 
 <h2>Recent runs</h2>

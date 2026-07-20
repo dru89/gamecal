@@ -115,7 +115,8 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
     return {
         "upcoming": upcoming,
         "undated": undated,
-        "released": released,
+        "released": released[:15],
+        "released_more": released[15:],
         "pending": pending,
         "playing": playing,
         "today": today,
