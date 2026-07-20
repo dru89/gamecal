@@ -20,6 +20,25 @@ STEAM_SOURCE = 1
 EXACT_DATE = 0
 
 
+# Display names for IGDB's verbose platform strings. Matching/config always
+# uses the full IGDB name; this is presentation only.
+PLATFORM_SHORT = {
+    "PC (Microsoft Windows)": "PC",
+    "PlayStation 5": "PS5",
+    "PlayStation 4": "PS4",
+    "PlayStation 3": "PS3",
+    "Xbox Series X|S": "Xbox",
+    "Xbox One": "Xbox One",
+    "Nintendo Switch": "Switch",
+    "Nintendo Switch 2": "Switch 2",
+    "Nintendo 3DS": "3DS",
+}
+
+
+def short_platform(name: str) -> str:
+    return PLATFORM_SHORT.get(name, name)
+
+
 class IgdbError(RuntimeError):
     pass
 

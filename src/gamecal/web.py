@@ -15,13 +15,14 @@ from jinja2 import Environment, FileSystemLoader
 
 from . import gcal as gcal_mod
 from .config import Config
-from .igdb import Igdb, IgdbError
+from .igdb import Igdb, IgdbError, short_platform
 from .ledger import Ledger
 
 TEMPLATES = Environment(
     loader=FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True
 )
 TEMPLATES.filters["ts_year"] = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc).year
+TEMPLATES.filters["plat"] = short_platform
 
 
 def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
@@ -64,6 +65,10 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
             entry["releases"].append(rel)
             if day >= today:
                 future.append(rel)
+        groups: dict = {}
+        for r in entry["releases"]:
+            groups.setdefault(r["day"], []).append(short_platform(r["platform"]))
+        entry["date_groups"] = sorted(groups.items())
         pref = gcal_mod._platform_pref(ledger, slug, g)
         picked = gcal_mod._pick_release(entry["releases"], pref, allowlist, today)
         past = [r for r in entry["releases"] if r["day"] < today]

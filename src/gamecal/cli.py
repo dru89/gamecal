@@ -358,7 +358,7 @@ def signals(ctx: Ctx):
     from . import gcal as gcal_mod
 
     def run(run_id: int) -> str:
-        from .igdb import Igdb
+        from .igdb import Igdb, short_platform
 
         led = ctx.ledger
         now_ts = time.time()
@@ -434,7 +434,8 @@ def signals(ctx: Ctx):
                     if not led.attention_seen(key):
                         led.add_attention(
                             "released",
-                            f"{g['title']} — {d.strftime('%b %d')}, {r['platform']}",
+                            f"{g['title']} — {d.strftime('%b %d')},"
+                            f" {short_platform(r['platform'])}",
                             key,
                             links=game_links(g.get("steam_appid"), slug),
                         )

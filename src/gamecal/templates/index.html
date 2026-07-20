@@ -95,11 +95,11 @@
       {{ g.title }}
       {% if g.releases | length > 1 %}
         <div class="muted">
-          {% for r in g.releases %}{{ r.platform }} {{ r.day.strftime('%b %d') }}{% if not loop.last %} · {% endif %}{% endfor %}
+          {% for day, plats in g.date_groups %}{{ day.strftime('%b %d') }} — {{ plats | join(', ') }}{% if not loop.last %} · {% endif %}{% endfor %}
         </div>
       {% endif %}
     </td>
-    <td class="plat"><span class="pill">{{ g.next.platform }}</span></td>
+    <td class="plat"><span class="pill">{{ g.next.platform | plat }}</span></td>
     <td class="src"><span class="pill">{{ g.source }}</span></td>
     <td class="links">{{ service_icons(g.links) }}</td>
     <td class="act">
@@ -152,7 +152,7 @@
   <tr>
     <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
     <td class="title">{{ g.title }}</td>
-    <td class="plat"><span class="pill">{{ g.last.platform }}</span></td>
+    <td class="plat"><span class="pill">{{ g.last.platform | plat }}</span></td>
     <td class="src"><span class="pill">{{ g.source }}</span></td>
     <td class="links">{{ service_icons(g.links) }}</td>
     <td class="act"></td>

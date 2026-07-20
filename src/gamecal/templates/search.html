@@ -18,7 +18,7 @@
       {% if g.first_release_date %}
         <span class="muted">({{ g.first_release_date | ts_year }})</span>
       {% endif %}
-      <div class="muted">{{ g.platforms | join(' · ') }}</div>
+      <div class="muted">{{ g.platforms | map('plat') | join(' · ') }}</div>
     </td>
     <td class="action">
       {% if g.slug in tracked %}
@@ -32,7 +32,7 @@
         {% if g.platforms %}
         <select name="platform">
           <option value="">earliest</option>
-          {% for p in g.platforms %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+          {% for p in g.platforms %}<option value="{{ p }}">{{ p | plat }}</option>{% endfor %}
         </select>
         {% endif %}
         <button>Track</button>

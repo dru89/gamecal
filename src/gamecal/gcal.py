@@ -21,6 +21,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from .config import Config
+from .igdb import short_platform
 from .ledger import Ledger
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
@@ -127,14 +128,14 @@ def event_for_game(ledger: Ledger, slug: str, g: dict, releases: list[dict],
     lines.append(f"https://www.igdb.com/games/{slug}")
     lines.append("")
     if fallback:
-        lines.append(f"No {pref} date yet — earliest is {rel['platform']}.")
+        lines.append(f"No {short_platform(pref)} date yet — earliest is {short_platform(rel['platform'])}.")
     seen = set()
     for r in sorted(releases, key=lambda r: r["date_unix"]):
         d = datetime.fromtimestamp(r["date_unix"], tz=timezone.utc).date()
         if (d, r["platform"]) in seen:
             continue
         seen.add((d, r["platform"]))
-        lines.append(f"{d.isoformat()}  {r['platform']}")
+        lines.append(f"{d.isoformat()}  {short_platform(r['platform'])}")
 
     return {
         "summary": f"🎮 {g['title']}",
