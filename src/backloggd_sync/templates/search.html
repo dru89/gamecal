@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Search — backloggd-sync{% endblock %}
+{% block content %}
+
+{% if error %}
+<div class="attention">{{ error }}</div>
+{% endif %}
+
+{% if q and not error %}
+<h2>Results for “{{ q }}”</h2>
+<table>
+  {% for g in results %}
+  <tr>
+    <td>{% if g.cover_url %}<img class="cover" src="{{ g.cover_url }}" alt="">{% endif %}</td>
+    <td>
+      <a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a>
+      {% if g.first_release_date %}
+        <span class="muted">({{ g.first_release_date | ts_year }})</span>
+      {% endif %}
+      <div class="muted">{{ g.platforms | join(' · ') }}</div>
+    </td>
+    <td>
+      {% if g.slug in tracked %}
+      <span class="pill">tracked</span>
+      {% else %}
+      <form method="post" action="/watch">
+        <input type="hidden" name="slug" value="{{ g.slug }}">
+        <input type="hidden" name="igdb_id" value="{{ g.igdb_id }}">
+        <input type="hidden" name="title" value="{{ g.title }}">
+        <input type="hidden" name="back" value="/search?q={{ q | urlencode }}">
+        <button>Track</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td class="muted">No results.</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Search IGDB to track games on any platform — Switch, PS5, Xbox, anything.</p>
+{% endif %}
+
+{% endblock %}

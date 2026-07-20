@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}backloggd-sync{% endblock %}</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; background: #16181d; color: #d7dae0;
+         max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+  a { color: #7aa2f7; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 2rem; color: #aab2c0; }
+  nav { display: flex; gap: 1rem; align-items: baseline; margin-bottom: 1.5rem; }
+  nav form { margin-left: auto; }
+  input[type=search] { background: #21242c; border: 1px solid #333845; color: inherit;
+         border-radius: 6px; padding: .4rem .6rem; width: 220px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  tr + tr td { border-top: 1px solid #23262e; }
+  .muted { color: #6c7484; } .date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill { font-size: .75rem; background: #23262e; border-radius: 10px; padding: .1rem .5rem;
+          color: #9aa3b2; white-space: nowrap; }
+  .soon { color: #e0af68; } .today { color: #9ece6a; font-weight: 600; }
+  button { background: #2a2e38; color: #d7dae0; border: 1px solid #3a3f4c;
+           border-radius: 6px; padding: .25rem .7rem; cursor: pointer; }
+  button:hover { background: #333845; }
+  img.cover { width: 45px; border-radius: 4px; display: block; }
+  .attention { background: #2b2320; border: 1px solid #5c4432; border-radius: 8px;
+               padding: .6rem .9rem; margin: .4rem 0; }
+</style>
+</head>
+<body>
+<nav>
+  <h1><a href="/">backloggd-sync</a></h1>
+  <form action="/search" method="get">
+    <input type="search" name="q" placeholder="Search IGDB…" value="{{ q or '' }}">
+  </form>
+</nav>
+{% block content %}{% endblock %}
+</body>
+</html>

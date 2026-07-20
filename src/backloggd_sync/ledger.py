@@ -65,8 +65,10 @@ def now() -> str:
 
 
 class Ledger:
-    def __init__(self, path: Path):
-        self.conn = sqlite3.connect(path)
+    def __init__(self, path: Path, check_same_thread: bool = True):
+        # check_same_thread=False for the web app: one shared connection
+        # across uvicorn's threadpool. Single-user, low write volume.
+        self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
 

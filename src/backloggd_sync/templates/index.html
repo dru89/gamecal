@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if attention %}
+<h2>Needs attention</h2>
+{% for a in attention %}
+<div class="attention">[{{ a['kind'] }}] {{ a['message'] }} <span class="muted">{{ a['created_at'] }}</span></div>
+{% endfor %}
+{% endif %}
+
+<h2>Upcoming</h2>
+{% if upcoming %}
+<table>
+  {% for g in upcoming %}
+  <tr>
+    <td class="date {% if g.next.day == today %}today{% elif (g.next.day - today).days <= 14 %}soon{% endif %}">
+      {{ g.next.day.strftime('%b %d, %Y') }}
+    </td>
+    <td>
+      <a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a>
+      {% if g.releases | length > 1 %}
+        <div class="muted">
+          {% for r in g.releases %}{{ r.platform }} {{ r.day.strftime('%b %d') }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </div>
+      {% endif %}
+    </td>
+    <td><span class="pill">{{ g.next.platform }}</span></td>
+    <td><span class="pill">{{ g.source }}</span></td>
+    <td>
+      {% if g.watched %}
+      <form method="post" action="/unwatch">
+        <input type="hidden" name="slug" value="{{ g.slug }}">
+        <button title="Stop tracking">✕</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Nothing upcoming. Run <code>backloggd-sync releases</code> or <a href="/search">search IGDB</a> to track something.</p>
+{% endif %}
+
+{% if undated or pending %}
+<h2>No date yet</h2>
+<table>
+  {% for g in undated %}
+  <tr>
+    <td><a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a></td>
+    <td><span class="pill">{{ g.source }}</span></td>
+    <td>
+      {% if g.watched %}
+      <form method="post" action="/unwatch">
+        <input type="hidden" name="slug" value="{{ g.slug }}">
+        <button title="Stop tracking">✕</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  {% for slug in pending %}
+  <tr><td colspan="3"><span class="muted">{{ slug }} — pending next <code>releases</code> run</span></td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if released %}
+<h2>Released</h2>
+<table>
+  {% for g in released %}
+  <tr>
+    <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
+    <td><a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a></td>
+    <td><span class="pill">{{ g.last.platform }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2>Recent runs</h2>
+<table>
+  {% for r in runs %}
+  <tr>
+    <td class="date muted">{{ r['started_at'] }}</td>
+    <td>{{ r['job'] }}</td>
+    <td>{% if r['status'] == 'ok' %}<span class="muted">ok</span>{% else %}<strong>{{ r['status'] }}</strong>{% endif %}</td>
+    <td class="muted">{{ r['detail'] or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="muted">No runs yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

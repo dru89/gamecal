@@ -95,6 +95,15 @@ def releases(ctx: Ctx, show_all: bool):
             raise click.ClickException(
                 "nothing to look up — run pull-steam and/or `watch add <slug>` first"
             )
+        ctx.ledger.record_observations(
+            run_id,
+            "igdb_game",
+            [
+                {**m, "external_id": m["slug"], "source": src}
+                for src, group in (("steam", mapping.values()), ("watch", by_slug.values()))
+                for m in group
+            ],
+        )
         dates = igdb.release_dates(list(games))
         if ctx.cfg.sync.platforms:
             dates = [d for d in dates if d["platform"] in ctx.cfg.sync.platforms]
@@ -195,6 +204,19 @@ def breaker_status(ctx: Ctx):
 def breaker_reset(ctx: Ctx, job: str):
     ctx.ledger.breaker_reset(job)
     click.echo(f"breaker reset for {job}")
+
+
+@cli.command()
+@click.option("--host", default="127.0.0.1", help="Bind address (ds9: the Tailscale IP)")
+@click.option("--port", default=8787, type=int)
+@click.pass_obj
+def serve(ctx: Ctx, host: str, port: int):
+    """Run the web UI: tracked games, IGDB search, run digest."""
+    import uvicorn
+
+    from .web import create_app
+
+    uvicorn.run(create_app(ctx.cfg), host=host, port=port)
 
 
 def main() -> None:

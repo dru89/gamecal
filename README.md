@@ -18,6 +18,6 @@ a CLI subcommand with a shared SQLite ledger and per-job circuit breakers.
 - [x] Steam pull (wishlist + owned via official Web API)
 - [x] IGDB join (appid → game via external_games; exact-dated releases only)
 - [ ] Google Calendar reconciler
-- [ ] Digest site on ds9
+- [x] Web UI: tracked-games home, IGDB search + track, run digest (`serve`)
 - Backloggd read/write: **on hold** — site is behind BotStopper/Anubis with a
   hard deny for automated browsers. Do not scrape without an explicit decision.

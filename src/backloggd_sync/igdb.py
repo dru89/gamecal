@@ -107,6 +107,34 @@ class Igdb:
                 }
         return out
 
+    def search(self, query: str, limit: int = 20) -> list[dict]:
+        """Full-text game search. Returns [{igdb_id, slug, title,
+        first_release_date, platforms, cover_url}]."""
+        q = query.replace('"', "")
+        rows = self._query(
+            "games",
+            f'search "{q}"; fields id, slug, name, first_release_date,'
+            f" platforms.name, cover.image_id; limit {limit};",
+        )
+        out = []
+        for row in rows:
+            cover = (row.get("cover") or {}).get("image_id")
+            out.append(
+                {
+                    "igdb_id": row["id"],
+                    "slug": row["slug"],
+                    "title": row["name"],
+                    "first_release_date": row.get("first_release_date"),
+                    "platforms": [p["name"] for p in row.get("platforms", [])],
+                    "cover_url": (
+                        f"https://images.igdb.com/igdb/image/upload/t_cover_small/{cover}.jpg"
+                        if cover
+                        else None
+                    ),
+                }
+            )
+        return out
+
     def release_dates(self, igdb_ids: list[int]) -> list[dict]:
         """Exact-dated releases for the given games, all platforms.
 
