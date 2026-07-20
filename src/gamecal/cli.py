@@ -358,15 +358,18 @@ def signals(ctx: Ctx):
     from . import gcal as gcal_mod
 
     def run(run_id: int) -> str:
+        from .igdb import Igdb
+
         led = ctx.ledger
         now_ts = time.time()
         slug_by_appid = {
-            int(g["steam_appid"]): slug
-            for slug, g in led.tracked_games().items()
+            int(g["steam_appid"]): g["slug"]
+            for g in led.tracked_games().values()
             if g.get("steam_appid")
         }
-        added = 0
 
+        # First pass: find candidate library games.
+        candidates = []  # (kind, key, appid, title, hours, last)
         for g in led.latest_observations("steam_library").values():
             appid = int(g["external_id"])
             rt, pt = g.get("last_played") or 0, g.get("playtime_minutes") or 0
@@ -374,34 +377,46 @@ def signals(ctx: Ctx):
                 continue
             days = (now_ts - rt) / 86400
             title = g.get("title") or f"steam app {appid}"
-            slug = slug_by_appid.get(appid)
-            url = (
-                f"https://backloggd.com/games/{slug}/"
-                if slug
-                else f"https://store.steampowered.com/app/{appid}/"
-            )
             hours = pt / 60
+            last = datetime.fromtimestamp(rt, tz=timezone.utc).date()
             if days <= 10 and pt >= 60:
                 key = f"playing:{appid}"
                 if not led.attention_seen(key, within_days=45):
-                    led.add_attention(
-                        "playing",
-                        f"{title} — recently played ({hours:.0f}h total)."
-                        f" Mark it Playing on Backloggd?",
-                        key, url,
-                    )
-                    added += 1
+                    candidates.append(("playing", key, appid, title, hours, last))
             elif 30 <= days <= 75 and pt >= 180:
                 key = f"gone-quiet:{appid}:{rt}"
                 if not led.attention_seen(key):
-                    last = datetime.fromtimestamp(rt, tz=timezone.utc).date()
-                    led.add_attention(
-                        "gone_quiet",
-                        f"{title} has gone quiet — last played {last},"
-                        f" {hours:.0f}h total. Completed or shelved?",
-                        key, url,
-                    )
-                    added += 1
+                    candidates.append(("gone_quiet", key, appid, title, hours, last))
+
+        # Resolve Backloggd/IGDB slugs for candidates we don't know yet
+        # (Backloggd slugs are IGDB slugs).
+        unknown = [c[2] for c in candidates if c[2] not in slug_by_appid]
+        if unknown:
+            try:
+                found = Igdb(ctx.cfg.igdb).games_for_steam_appids(unknown)
+                slug_by_appid.update({aid: m["slug"] for aid, m in found.items()})
+            except Exception as e:
+                click.echo(f"note: slug resolution skipped: {e!r}", err=True)
+
+        def game_links(appid: int | None, slug: str | None) -> dict:
+            links = {}
+            if slug:
+                links["backloggd"] = f"https://backloggd.com/games/{slug}/"
+            if appid:
+                links["steam"] = f"https://store.steampowered.com/app/{appid}/"
+            if slug:
+                links["igdb"] = f"https://www.igdb.com/games/{slug}"
+            return links
+
+        added = 0
+        for kind, key, appid, title, hours, last in candidates:
+            slug = slug_by_appid.get(appid)
+            if kind == "playing":
+                msg = f"{title} — {hours:.0f}h total, last played {last.strftime('%b %d')}"
+            else:
+                msg = f"{title} — last played {last.strftime('%b %d')}, {hours:.0f}h total"
+            led.add_attention(kind, msg, key, links=game_links(appid, slug))
+            added += 1
 
         today = datetime.now(timezone.utc).date()
         by_game = gcal_mod.releases_by_game(led)
@@ -420,9 +435,9 @@ def signals(ctx: Ctx):
                     if not led.attention_seen(key):
                         led.add_attention(
                             "released",
-                            f"{g['title']} is out ({d.strftime('%b %d')},"
-                            f" {r['platform']}) — move it along on Backloggd.",
-                            key, f"https://backloggd.com/games/{slug}/",
+                            f"{g['title']} — {d.strftime('%b %d')}, {r['platform']}",
+                            key,
+                            links=game_links(g.get("steam_appid"), slug),
                         )
                         added += 1
                     break

@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS attention (
     external_id TEXT,
     message TEXT NOT NULL,
     url TEXT,
+    links TEXT,                    -- JSON {"backloggd": url, "steam": url, ...}
     resolved_at TEXT
 );
 """
@@ -72,10 +73,11 @@ class Ledger:
         self.conn = sqlite3.connect(path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
-        try:  # migration for ledgers created before the url column existed
-            self.conn.execute("ALTER TABLE attention ADD COLUMN url TEXT")
-        except sqlite3.OperationalError:
-            pass
+        for col in ("url TEXT", "links TEXT"):  # migrations for older ledgers
+            try:
+                self.conn.execute(f"ALTER TABLE attention ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
 
     # -- runs ---------------------------------------------------------------
 
@@ -213,11 +215,13 @@ class Ledger:
         }
 
     def add_attention(self, kind: str, message: str,
-                      external_id: str | None = None, url: str | None = None) -> None:
+                      external_id: str | None = None, url: str | None = None,
+                      links: dict[str, str] | None = None) -> None:
         self.conn.execute(
-            "INSERT INTO attention (created_at, kind, external_id, message, url)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (now(), kind, external_id, message, url),
+            "INSERT INTO attention (created_at, kind, external_id, message, url, links)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (now(), kind, external_id, message, url,
+             json.dumps(links) if links else None),
         )
         self.conn.commit()
 

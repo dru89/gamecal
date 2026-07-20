@@ -5,6 +5,7 @@ live; everything else renders from the ledger, so the page works even when
 IGDB is down or unconfigured.
 """
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -108,13 +109,26 @@ def create_app(cfg: Config) -> FastAPI:
     def render(template: str, **ctx) -> HTMLResponse:
         return HTMLResponse(TEMPLATES.get_template(template).render(**ctx))
 
+    NUDGE_KINDS = ("playing", "gone_quiet", "released")
+
     @app.get("/", response_class=HTMLResponse)
     def home():
+        items = []
+        for a in ledger.open_attention():
+            d = dict(a)
+            if d.get("links"):
+                d["links"] = json.loads(d["links"])
+            elif d.get("url"):
+                d["links"] = {"open": d["url"]}
+            else:
+                d["links"] = {}
+            items.append(d)
         return render(
             "index.html",
             **_tracked_games(ledger, cfg.sync.platforms),
             runs=ledger.recent_runs(10),
-            attention=ledger.open_attention(),
+            errors=[a for a in items if a["kind"] not in NUDGE_KINDS],
+            nudges={k: [a for a in items if a["kind"] == k] for k in NUDGE_KINDS},
         )
 
     @app.get("/search", response_class=HTMLResponse)

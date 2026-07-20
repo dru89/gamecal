@@ -1,18 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
 
-{% if attention %}
-<h2>Needs attention</h2>
-{% for a in attention %}
+{% if errors %}
+<h2>Errors</h2>
+{% for a in errors %}
 <div class="attention">
   <form class="dismiss" method="post" action="/attention/resolve">
     <input type="hidden" name="item_id" value="{{ a['id'] }}">
     <button title="Dismiss">✕</button>
   </form>
-  [{{ a['kind'] }}] {{ a['message'] }}{% if a['url'] %} <a href="{{ a['url'] }}">open ↗</a>{% endif %}
+  [{{ a['kind'] }}] {{ a['message'] }}
   <time class="ts" datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time>
 </div>
 {% endfor %}
+{% endif %}
+
+{% macro nudge_rows(items) %}
+<table>
+  {% for a in items %}
+  <tr>
+    <td class="check">
+      <form method="post" action="/attention/resolve">
+        <input type="hidden" name="item_id" value="{{ a['id'] }}">
+        <button title="Done">✔</button>
+      </form>
+    </td>
+    <td>{{ a['message'] }}</td>
+    <td class="links">
+      {% for name, href in a['links'].items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
+    </td>
+    <td class="date muted"><time datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endmacro %}
+
+{% if nudges.playing %}
+<h2>Mark as Playing</h2>
+{{ nudge_rows(nudges.playing) }}
+{% endif %}
+
+{% if nudges.gone_quiet %}
+<h2>Completed or shelved?</h2>
+{{ nudge_rows(nudges.gone_quiet) }}
+{% endif %}
+
+{% if nudges.released %}
+<h2>Just released</h2>
+{{ nudge_rows(nudges.released) }}
 {% endif %}
 
 {% if playing %}
