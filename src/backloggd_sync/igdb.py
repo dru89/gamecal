@@ -88,6 +88,25 @@ class Igdb:
                 }
         return out
 
+    def games_by_slugs(self, slugs: list[str]) -> dict[str, dict]:
+        """Map igdb slug -> {igdb_id, slug, title}. Slugs are the tail of an
+        IGDB or Backloggd game URL, e.g. 'silksong' in backloggd.com/games/silksong/."""
+        out: dict[str, dict] = {}
+        for i in range(0, len(slugs), 100):
+            batch = slugs[i : i + 100]
+            quoted = ",".join(f'"{s}"' for s in batch)
+            rows = self._query(
+                "games",
+                f"fields id, slug, name; where slug = ({quoted}); limit 500;",
+            )
+            for row in rows:
+                out[row["slug"]] = {
+                    "igdb_id": row["id"],
+                    "slug": row["slug"],
+                    "title": row["name"],
+                }
+        return out
+
     def release_dates(self, igdb_ids: list[int]) -> list[dict]:
         """Exact-dated releases for the given games, all platforms.
 

@@ -76,16 +76,26 @@ def releases(ctx: Ctx, show_all: bool):
     """Join wishlist against IGDB release dates; print upcoming releases."""
 
     def run(run_id: int) -> str:
-        wishlist = ctx.ledger.latest_observations("steam_wishlist")
-        if not wishlist:
-            raise click.ClickException("no wishlist in ledger — run pull-steam first")
-        appids = [int(k) for k in wishlist]
         igdb = Igdb(ctx.cfg.igdb)
-        mapping = igdb.games_for_steam_appids(appids)
+        wishlist = ctx.ledger.latest_observations("steam_wishlist")
+        appids = [int(k) for k in wishlist]
+        mapping = igdb.games_for_steam_appids(appids) if appids else {}
         unmatched = sorted(set(appids) - set(mapping))
         if unmatched:
             click.echo(f"note: {len(unmatched)} appids had no IGDB match: {unmatched}", err=True)
-        dates = igdb.release_dates([m["igdb_id"] for m in mapping.values()])
+
+        watched = _watch_slugs(ctx)
+        by_slug = igdb.games_by_slugs(watched) if watched else {}
+        missing = sorted(set(watched) - set(by_slug))
+        if missing:
+            click.echo(f"note: watched slugs not found on IGDB: {missing}", err=True)
+
+        games = {m["igdb_id"]: m for m in [*mapping.values(), *by_slug.values()]}
+        if not games:
+            raise click.ClickException(
+                "nothing to look up — run pull-steam and/or `watch add <slug>` first"
+            )
+        dates = igdb.release_dates(list(games))
         if ctx.cfg.sync.platforms:
             dates = [d for d in dates if d["platform"] in ctx.cfg.sync.platforms]
         ctx.ledger.record_observations(
@@ -102,9 +112,48 @@ def releases(ctx: Ctx, show_all: bool):
                 continue
             rows.append(f"  {day}  {d['title']}  [{d['platform']}]")
         click.echo("\n".join(rows) if rows else "  (no upcoming exact-dated releases)")
-        return f"{len(mapping)} games matched, {len(dates)} dated releases"
+        return f"{len(games)} games ({len(mapping)} steam, {len(by_slug)} watched), {len(dates)} dated releases"
 
     _job(ctx, "releases", run)
+
+
+def _watch_slugs(ctx: Ctx) -> list[str]:
+    rows = ctx.ledger.conn.execute(
+        "SELECT key FROM kv WHERE key LIKE 'watch:%'"
+    ).fetchall()
+    return [r["key"].removeprefix("watch:") for r in rows]
+
+
+@cli.group()
+def watch():
+    """Manually watched games (non-Steam titles), by IGDB slug."""
+
+
+@watch.command("add")
+@click.argument("slugs", nargs=-1, required=True)
+@click.pass_obj
+def watch_add(ctx: Ctx, slugs: tuple[str, ...]):
+    """Add IGDB slugs, e.g. the tail of a Backloggd game URL: watch add silksong."""
+    for slug in slugs:
+        ctx.ledger.set(f"watch:{slug}", "1")
+    click.echo(f"watching: {', '.join(slugs)}")
+
+
+@watch.command("remove")
+@click.argument("slugs", nargs=-1, required=True)
+@click.pass_obj
+def watch_remove(ctx: Ctx, slugs: tuple[str, ...]):
+    for slug in slugs:
+        ctx.ledger.conn.execute("DELETE FROM kv WHERE key = ?", (f"watch:{slug}",))
+    ctx.ledger.conn.commit()
+    click.echo(f"unwatched: {', '.join(slugs)}")
+
+
+@watch.command("list")
+@click.pass_obj
+def watch_list(ctx: Ctx):
+    for slug in _watch_slugs(ctx):
+        click.echo(f"  {slug}")
 
 
 @cli.command("report")
