@@ -402,10 +402,9 @@ def signals(ctx: Ctx):
             links = {}
             if slug:
                 links["backloggd"] = f"https://backloggd.com/games/{slug}/"
+                links["igdb"] = f"https://www.igdb.com/games/{slug}"
             if appid:
                 links["steam"] = f"https://store.steampowered.com/app/{appid}/"
-            if slug:
-                links["igdb"] = f"https://www.igdb.com/games/{slug}"
             return links
 
         added = 0

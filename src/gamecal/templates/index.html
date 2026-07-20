@@ -1,4 +1,24 @@
 {% extends "base.html" %}
+
+{# Service links as favicon icons, stable order: the spine (backloggd, igdb)
+   first, steam last so rows without it stay aligned. "open" is a legacy
+   fallback for items recorded before per-service links existed. #}
+{% macro service_icons(links) -%}
+  {%- set domains = {"backloggd": "backloggd.com", "igdb": "igdb.com", "steam": "store.steampowered.com"} -%}
+  {%- for name in ["backloggd", "igdb", "steam"] -%}
+    {%- if links.get(name) -%}
+      <a class="svc" href="{{ links[name] }}" title="{{ name }}"><img src="https://www.google.com/s2/favicons?domain={{ domains[name] }}&sz=32" alt="{{ name }}"></a>
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if links.get("open") %}<a class="pill" href="{{ links['open'] }}">open ↗</a>{% endif -%}
+{%- endmacro %}
+
+{% macro game_cols() %}
+<colgroup>
+  <col class="c-date"><col><col class="c-plat"><col class="c-src"><col class="c-links"><col class="c-act">
+</colgroup>
+{% endmacro %}
+
 {% block content %}
 
 {% if errors %}
@@ -16,7 +36,8 @@
 {% endif %}
 
 {% macro nudge_rows(items) %}
-<table>
+<table class="aligned">
+  <colgroup><col class="c-check"><col><col class="c-links"><col class="c-time"></colgroup>
   {% for a in items %}
   <tr>
     <td class="check">
@@ -26,9 +47,7 @@
       </form>
     </td>
     <td>{{ a['message'] }}</td>
-    <td class="links">
-      {% for name, href in a['links'].items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
-    </td>
+    <td class="links">{{ service_icons(a['links']) }}</td>
     <td class="date muted"><time datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time></td>
   </tr>
   {% endfor %}
@@ -65,7 +84,8 @@
 
 <h2>Upcoming</h2>
 {% if upcoming %}
-<table>
+<table class="aligned">
+  {{ game_cols() }}
   {% for g in upcoming %}
   <tr>
     <td class="date {% if g.next.day == today %}today{% elif (g.next.day - today).days <= 14 %}soon{% endif %}">
@@ -81,9 +101,7 @@
     </td>
     <td><span class="pill">{{ g.next.platform }}</span></td>
     <td><span class="pill">{{ g.source }}</span></td>
-    <td class="links">
-      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
-    </td>
+    <td class="links">{{ service_icons(g.links) }}</td>
     <td>
       {% if g.watched %}
       <form method="post" action="/unwatch">
@@ -101,14 +119,15 @@
 
 {% if undated or pending %}
 <h2>No date yet</h2>
-<table>
+<table class="aligned">
+  {{ game_cols() }}
   {% for g in undated %}
   <tr>
+    <td class="date muted">—</td>
     <td>{{ g.title }}</td>
+    <td></td>
     <td><span class="pill">{{ g.source }}</span></td>
-    <td class="links">
-      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
-    </td>
+    <td class="links">{{ service_icons(g.links) }}</td>
     <td>
       {% if g.watched %}
       <form method="post" action="/unwatch">
@@ -120,22 +139,23 @@
   </tr>
   {% endfor %}
   {% for slug in pending %}
-  <tr><td colspan="3"><span class="muted">{{ slug }} — pending next <code>releases</code> run</span></td></tr>
+  <tr><td colspan="6"><span class="muted">{{ slug }} — pending next <code>releases</code> run</span></td></tr>
   {% endfor %}
 </table>
 {% endif %}
 
 {% if released %}
 <h2>Released</h2>
-<table>
+<table class="aligned">
+  {{ game_cols() }}
   {% for g in released %}
   <tr>
     <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
     <td>{{ g.title }}</td>
     <td><span class="pill">{{ g.last.platform }}</span></td>
-    <td class="links">
-      {% for name, href in g.links.items() %}<a class="pill" href="{{ href }}">{{ name }}</a> {% endfor %}
-    </td>
+    <td><span class="pill">{{ g.source }}</span></td>
+    <td class="links">{{ service_icons(g.links) }}</td>
+    <td></td>
   </tr>
   {% endfor %}
 </table>
