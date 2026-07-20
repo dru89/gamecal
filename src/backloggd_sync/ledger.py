@@ -120,6 +120,33 @@ class Ledger:
         ).fetchall()
         return {r["external_id"]: json.loads(r["payload"]) for r in rows}
 
+    def run_observations(self, source: str) -> list[dict]:
+        """All observations of `source` from the most recent run that recorded
+        any. Use for sources that snapshot the full current state each run
+        (igdb_release, igdb_game): stale keys from old runs drop out."""
+        row = self.conn.execute(
+            "SELECT MAX(run_id) AS r FROM observations WHERE source = ?", (source,)
+        ).fetchone()
+        if row["r"] is None:
+            return []
+        rows = self.conn.execute(
+            "SELECT payload FROM observations WHERE source = ? AND run_id = ?",
+            (source, row["r"]),
+        ).fetchall()
+        return [json.loads(r["payload"]) for r in rows]
+
+    # -- actions ------------------------------------------------------------
+
+    def record_actions(self, run_id: int, target: str, items: list[tuple[str, str, dict]]) -> None:
+        """items: (external_id, action, payload)"""
+        ts = now()
+        self.conn.executemany(
+            "INSERT INTO actions (run_id, target, external_id, action, payload, performed_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            [(run_id, target, ext, act, json.dumps(payload), ts) for ext, act, payload in items],
+        )
+        self.conn.commit()
+
     # -- kv / circuit breaker ----------------------------------------------
 
     def get(self, key: str, default: str | None = None) -> str | None:
@@ -147,6 +174,20 @@ class Ledger:
         self.set(f"breaker:{job}", "0")
 
     # -- attention ----------------------------------------------------------
+
+    def tracked_games(self) -> dict[str, dict]:
+        """Current tracked set, by slug: the last releases-run snapshot, plus
+        watch-sourced games added since (web Track button), minus watch games
+        whose kv entry was removed."""
+        games = {g["slug"]: g for g in self.run_observations("igdb_game")}
+        for slug, g in self.latest_observations("igdb_game").items():
+            if slug not in games and g.get("source") == "watch":
+                games[slug] = g
+        return {
+            slug: g
+            for slug, g in games.items()
+            if g.get("source") != "watch" or self.get(f"watch:{slug}") is not None
+        }
 
     def add_attention(self, kind: str, message: str, external_id: str | None = None) -> None:
         self.conn.execute(

@@ -28,6 +28,12 @@
         <input type="hidden" name="igdb_id" value="{{ g.igdb_id }}">
         <input type="hidden" name="title" value="{{ g.title }}">
         <input type="hidden" name="back" value="/search?q={{ q | urlencode }}">
+        {% if g.platforms %}
+        <select name="platform">
+          <option value="">earliest</option>
+          {% for p in g.platforms %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+        </select>
+        {% endif %}
         <button>Track</button>
       </form>
       {% endif %}

@@ -24,15 +24,14 @@ TEMPLATES.filters["ts_year"] = lambda ts: datetime.fromtimestamp(ts, tz=timezone
 
 def _tracked_games(ledger: Ledger) -> dict:
     """Assemble home-page data from the latest ledger observations."""
-    games = ledger.latest_observations("igdb_game")  # slug -> game
-    releases = ledger.latest_observations("igdb_release")  # igdb_id:platform -> release
+    games = ledger.tracked_games()
     watched = {
         r["key"].removeprefix("watch:")
         for r in ledger.conn.execute("SELECT key FROM kv WHERE key LIKE 'watch:%'")
     }
 
     by_game: dict[int, list[dict]] = {}
-    for rel in releases.values():
+    for rel in ledger.run_observations("igdb_release"):
         by_game.setdefault(rel["igdb_id"], []).append(rel)
 
     today = datetime.now(timezone.utc).date()
@@ -43,8 +42,12 @@ def _tracked_games(ledger: Ledger) -> dict:
         dates = sorted(by_game.get(g["igdb_id"], []), key=lambda r: r["date_unix"])
         entry = {**g, "watched": slug in watched, "releases": []}
         future = []
+        seen = set()
         for rel in dates:
             day = datetime.fromtimestamp(rel["date_unix"], tz=timezone.utc).date()
+            if (day, rel["platform"]) in seen:
+                continue
+            seen.add((day, rel["platform"]))
             rel = {**rel, "day": day}
             entry["releases"].append(rel)
             if day >= today:
@@ -112,9 +115,10 @@ def create_app(cfg: Config) -> FastAPI:
         slug: str = Form(...),
         igdb_id: int = Form(None),
         title: str = Form(None),
+        platform: str = Form(""),
         back: str = Form("/"),
     ):
-        ledger.set(f"watch:{slug}", "1")
+        ledger.set(f"watch:{slug}", platform or "1")
         # Record the observation now (search already fetched it) so the home
         # page shows the game before the next `releases` run.
         if igdb_id and title:

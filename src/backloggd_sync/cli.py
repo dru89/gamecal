@@ -129,7 +129,10 @@ def releases(ctx: Ctx, show_all: bool):
         ctx.ledger.record_observations(
             run_id,
             "igdb_release",
-            [{**d, "external_id": f"{d['igdb_id']}:{d['platform']}"} for d in dates],
+            [
+                {**d, "external_id": f"{d['igdb_id']}:{d['platform']}:{d['date_unix']}"}
+                for d in dates
+            ],
         )
 
         today = datetime.now(timezone.utc).date()
@@ -162,12 +165,17 @@ def watch():
 
 @watch.command("add")
 @click.argument("slugs", nargs=-1, required=True)
+@click.option("--platform", default=None, help='IGDB platform name, e.g. "Nintendo Switch"')
 @click.pass_obj
-def watch_add(ctx: Ctx, slugs: tuple[str, ...]):
-    """Add IGDB slugs, e.g. the tail of a Backloggd game URL: watch add silksong."""
+def watch_add(ctx: Ctx, slugs: tuple[str, ...], platform: str | None):
+    """Add IGDB slugs, e.g. the tail of a Backloggd game URL: watch add silksong.
+
+    The kv value is the preferred platform name, or "1" for no preference
+    (earliest date across the config allowlist).
+    """
     for slug in slugs:
-        ctx.ledger.set(f"watch:{slug}", "1")
-    click.echo(f"watching: {', '.join(slugs)}")
+        ctx.ledger.set(f"watch:{slug}", platform or "1")
+    click.echo(f"watching: {', '.join(slugs)}" + (f" [{platform}]" if platform else ""))
 
 
 @watch.command("remove")
@@ -226,6 +234,50 @@ def breaker_status(ctx: Ctx):
 def breaker_reset(ctx: Ctx, job: str):
     ctx.ledger.breaker_reset(job)
     click.echo(f"breaker reset for {job}")
+
+
+@cli.command()
+@click.option("--dry-run", is_flag=True, help="Print the plan without touching the calendar")
+@click.pass_obj
+def calendar(ctx: Ctx, dry_run: bool):
+    """Reconcile the Game Releases calendar with the ledger."""
+    from . import gcal
+
+    def run(run_id: int) -> str:
+        service = gcal.get_service(ctx.cfg)
+        cal_id = gcal.ensure_calendar(service, ctx.ledger)
+        desired = gcal.desired_events(ctx.ledger, ctx.cfg.sync.platforms)
+        today = datetime.now(timezone.utc).date()
+        plan = gcal.reconcile(service, cal_id, desired, today)
+        for ev, _ in plan["create"]:
+            click.echo(f"  + {ev['start']['date']}  {ev['summary']}")
+        for ev, cur in plan["update"]:
+            click.echo(f"  ~ {cur['start'].get('date')} -> {ev['start']['date']}  {ev['summary']}")
+        for _, cur in plan["delete"]:
+            click.echo(f"  - {cur['start'].get('date')}  {cur.get('summary')}")
+        counts = (
+            f"{len(plan['create'])} create, {len(plan['update'])} update,"
+            f" {len(plan['delete'])} delete ({len(desired)} events desired)"
+        )
+        if dry_run:
+            return f"dry-run: {counts}"
+        gcal.apply(service, cal_id, plan)
+        ctx.ledger.record_actions(
+            run_id,
+            "gcal",
+            [
+                (ev["extendedProperties"]["private"]["bls_id"], op, ev)
+                for op in ("create", "update")
+                for ev, _ in plan[op]
+            ]
+            + [
+                (cur["extendedProperties"]["private"]["bls_id"], "delete", {"id": cur["id"]})
+                for _, cur in plan["delete"]
+            ],
+        )
+        return counts
+
+    _job(ctx, "calendar", run)
 
 
 @cli.command()
