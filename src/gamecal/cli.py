@@ -340,6 +340,16 @@ def calendar(ctx: Ctx, dry_run: bool):
     _job(ctx, "calendar", run)
 
 
+@cli.command("notify-test")
+@click.pass_obj
+def notify_test(ctx: Ctx):
+    """Send a test push through every configured notify channel."""
+    if not (ctx.cfg.notify.ntfy_url or ctx.cfg.notify.webhook_url):
+        raise click.ClickException("no notify channels configured in [notify]")
+    _notify(ctx, "gamecal test", "If you can read this, failure pushes will reach you.")
+    click.echo("sent")
+
+
 @cli.command()
 @click.option("--host", default="127.0.0.1", help="Bind address (ds9: the Tailscale IP)")
 @click.option("--port", default=8787, type=int)
