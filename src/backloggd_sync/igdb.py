@@ -107,6 +107,27 @@ class Igdb:
                 }
         return out
 
+    # external_game_sources ids for console storefronts (no Nintendo eShop on IGDB)
+    PSN_STORE = 36
+    XBOX_STORE = 31
+
+    def store_urls(self, igdb_ids: list[int]) -> dict[int, dict[int, str]]:
+        """igdb_id -> {source_id: url} for PlayStation/Xbox storefronts."""
+        out: dict[int, dict[int, str]] = {}
+        for i in range(0, len(igdb_ids), 100):
+            batch = igdb_ids[i : i + 100]
+            ids = ",".join(str(x) for x in batch)
+            rows = self._query(
+                "external_games",
+                f"fields game, url, external_game_source;"
+                f" where game = ({ids})"
+                f" & external_game_source = ({self.XBOX_STORE},{self.PSN_STORE})"
+                f" & url != null; limit 500;",
+            )
+            for r in rows:
+                out.setdefault(r["game"], {})[r["external_game_source"]] = r["url"]
+        return out
+
     def unreleased_games(self, igdb_ids: list[int]) -> dict[int, dict]:
         """Subset of the given games IGDB considers not fully released:
         alpha/beta/early access, or no past first_release_date. Used to keep

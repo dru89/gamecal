@@ -120,7 +120,12 @@ def releases(ctx: Ctx, show_all: bool):
             if owned_map
             else {}
         )
-        owned_tracked = [m for m in owned_map.values() if m["igdb_id"] in unreleased]
+        owned_tracked = [
+            {**m, "steam_appid": aid}
+            for aid, m in owned_map.items()
+            if m["igdb_id"] in unreleased
+        ]
+        steam_games = [{**m, "steam_appid": aid} for aid, m in mapping.items()]
 
         watched = _watch_slugs(ctx)
         by_slug = igdb.games_by_slugs(watched) if watched else {}
@@ -128,9 +133,30 @@ def releases(ctx: Ctx, show_all: bool):
         if missing:
             click.echo(f"note: watched slugs not found on IGDB: {missing}", err=True)
 
+        # Console-preference watches get a first-party store link when IGDB has one.
+        def _store_source(pref: str | None) -> int | None:
+            if pref and "PlayStation" in pref:
+                return igdb.PSN_STORE
+            if pref and "Xbox" in pref:
+                return igdb.XBOX_STORE
+            return None
+
+        prefs = {slug: ctx.ledger.get(f"watch:{slug}") for slug in by_slug}
+        need = [m["igdb_id"] for s, m in by_slug.items() if _store_source(prefs.get(s))]
+        store = igdb.store_urls(need) if need else {}
+        watch_games = [
+            {
+                **m,
+                "store_url": store.get(m["igdb_id"], {}).get(_store_source(prefs.get(s)))
+                if _store_source(prefs.get(s))
+                else None,
+            }
+            for s, m in by_slug.items()
+        ]
+
         games = {
             m["igdb_id"]: m
-            for m in [*mapping.values(), *owned_tracked, *by_slug.values()]
+            for m in [*steam_games, *owned_tracked, *watch_games]
         }
         if not games:
             raise click.ClickException(
@@ -142,9 +168,9 @@ def releases(ctx: Ctx, show_all: bool):
             [
                 {**m, "external_id": m["slug"], "source": src}
                 for src, group in (
-                    ("steam", mapping.values()),
+                    ("steam", steam_games),
                     ("owned", owned_tracked),
-                    ("watch", by_slug.values()),
+                    ("watch", watch_games),
                 )
                 for m in group
             ],

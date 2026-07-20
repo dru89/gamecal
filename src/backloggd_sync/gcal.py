@@ -109,7 +109,13 @@ def desired_events(ledger: Ledger, allowlist: list[str]) -> list[dict]:
         rel, fallback = picked
         day = datetime.fromtimestamp(rel["date_unix"], tz=timezone.utc).date()
 
-        lines = [f"https://backloggd.com/games/{slug}/", ""]
+        lines = [f"https://backloggd.com/games/{slug}/"]
+        if g.get("steam_appid"):
+            lines.append(f"https://store.steampowered.com/app/{g['steam_appid']}/")
+        elif g.get("store_url"):
+            lines.append(g["store_url"])
+        lines.append(f"https://www.igdb.com/games/{slug}")
+        lines.append("")
         if fallback:
             lines.append(f"No {pref} date yet — earliest is {rel['platform']}.")
         seen = set()
