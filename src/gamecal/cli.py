@@ -36,10 +36,13 @@ def _notify(ctx: Ctx, title: str, message: str) -> None:
     original error."""
     import httpx
 
-    if ctx.cfg.notify.ntfy_url:
+    ntfy_url = ctx.cfg.notify.ntfy_url
+    if ntfy_url and not ntfy_url.startswith("http"):
+        ntfy_url = f"https://ntfy.sh/{ntfy_url}"  # bare topic name
+    if ntfy_url:
         try:
             httpx.post(
-                ctx.cfg.notify.ntfy_url,
+                ntfy_url,
                 content=message,
                 headers={"Title": title, "Priority": "high", "Tags": "warning"},
                 timeout=10,
