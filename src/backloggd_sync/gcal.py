@@ -66,11 +66,22 @@ def ensure_calendar(service, ledger: Ledger) -> str:
 # -- desired-state computation ------------------------------------------------
 
 
-def _pick_release(g: dict, releases: list[dict], platform_pref: str | None,
+def _platform_pref(ledger: Ledger, slug: str, g: dict) -> str | None:
+    if g.get("source") in ("steam", "owned"):
+        return PC
+    stored = ledger.get(f"watch:{slug}")
+    return stored if stored and stored != "1" else None
+
+
+def _pick_release(releases: list[dict], platform_pref: str | None,
                   allowlist: list[str], today: date) -> tuple[dict, bool] | None:
     """Choose the release row that defines this game's event date.
 
-    Returns (release, used_fallback) or None if nothing upcoming.
+    Returns (release, used_fallback) or None if no event is warranted.
+    A game already released on its preferred platform gets no event —
+    upcoming ports to other platforms are noise, not a release date.
+    Falling back to other platforms happens only when the preferred
+    platform has no dates at all yet.
     """
     def day(r):
         return datetime.fromtimestamp(r["date_unix"], tz=timezone.utc).date()
@@ -78,11 +89,17 @@ def _pick_release(g: dict, releases: list[dict], platform_pref: str | None,
     upcoming = sorted(
         (r for r in releases if day(r) >= today), key=lambda r: r["date_unix"]
     )
+    if platform_pref:
+        on_pref = [r for r in releases if r["platform"] == platform_pref]
+        upcoming_pref = sorted(
+            (r for r in on_pref if day(r) >= today), key=lambda r: r["date_unix"]
+        )
+        if upcoming_pref:
+            return upcoming_pref[0], False
+        if on_pref:
+            return None  # released on the platform you play on
     if not upcoming:
         return None
-    preferred = [r for r in upcoming if r["platform"] == platform_pref] if platform_pref else []
-    if preferred:
-        return preferred[0], False
     allowed = [r for r in upcoming if not allowlist or r["platform"] in allowlist]
     pool = allowed or upcoming
     return pool[0], platform_pref is not None
@@ -97,13 +114,8 @@ def desired_events(ledger: Ledger, allowlist: list[str]) -> list[dict]:
     today = datetime.now(timezone.utc).date()
     out = []
     for slug, g in games.items():
-        if g.get("source") in ("steam", "owned"):
-            pref = PC
-        else:
-            stored = ledger.get(f"watch:{slug}")
-            pref = stored if stored and stored != "1" else None
-
-        picked = _pick_release(g, by_game.get(g["igdb_id"], []), pref, allowlist, today)
+        pref = _platform_pref(ledger, slug, g)
+        picked = _pick_release(by_game.get(g["igdb_id"], []), pref, allowlist, today)
         if not picked:
             continue
         rel, fallback = picked

@@ -12,6 +12,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
+from . import gcal as gcal_mod
 from .config import Config
 from .igdb import Igdb, IgdbError
 from .ledger import Ledger
@@ -22,8 +23,12 @@ TEMPLATES = Environment(
 TEMPLATES.filters["ts_year"] = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc).year
 
 
-def _tracked_games(ledger: Ledger) -> dict:
-    """Assemble home-page data from the latest ledger observations."""
+def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
+    """Assemble home-page data from the latest ledger observations.
+
+    Buckets use the same platform-preference logic as the calendar
+    (gcal._pick_release), so a game already out on its preferred platform
+    shows as Released even if console ports are upcoming."""
     games = ledger.tracked_games()
     watched = {
         r["key"].removeprefix("watch:")
@@ -52,11 +57,15 @@ def _tracked_games(ledger: Ledger) -> dict:
             entry["releases"].append(rel)
             if day >= today:
                 future.append(rel)
-        if future:
-            entry["next"] = future[0]
+        pref = gcal_mod._platform_pref(ledger, slug, g)
+        picked = gcal_mod._pick_release(entry["releases"], pref, allowlist, today)
+        past = [r for r in entry["releases"] if r["day"] < today]
+        if picked:
+            rel, _ = picked
+            entry["next"] = {**rel, "day": datetime.fromtimestamp(rel["date_unix"], tz=timezone.utc).date()}
             upcoming.append(entry)
-        elif dates:
-            entry["last"] = entry["releases"][-1]
+        elif past:
+            entry["last"] = past[-1]
             released.append(entry)
         else:
             undated.append(entry)
@@ -87,7 +96,7 @@ def create_app(cfg: Config) -> FastAPI:
     def home():
         return render(
             "index.html",
-            **_tracked_games(ledger),
+            **_tracked_games(ledger, cfg.sync.platforms),
             runs=ledger.recent_runs(10),
             attention=ledger.open_attention(),
         )
