@@ -45,6 +45,45 @@
   .attention .dismiss { float: right; margin-left: .8rem; }
   .ts { display: block; margin-top: .3rem; color: #9aa3b2; font-size: .85rem;
         font-variant-numeric: tabular-nums; }
+  .when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 700px) {
+    body { margin: 1rem auto; }
+    nav { flex-wrap: wrap; gap: .5rem; }
+    nav form { width: 100%; margin-left: 0; }
+    input[type=search] { width: 100%; box-sizing: border-box; }
+    button { padding: .4rem .85rem; }
+    /* tables become stacked flex cards */
+    table, tbody { display: block; }
+    colgroup, col { display: none; }
+    tr { display: flex; flex-wrap: wrap; align-items: center;
+         column-gap: .6rem; row-gap: .3rem; padding: .65rem 0; }
+    tr + tr { border-top: 1px solid #23262e; }
+    td, th { display: block; padding: 0; }
+    tr + tr td { border-top: none; }
+    /* game tables: [date ....... x] / [title] / [platform source ... icons] */
+    .t-games td.date { order: 1; font-weight: 600; }
+    .t-games td.nodate { display: none; }
+    .t-games td.act { order: 2; margin-left: auto; }
+    .t-games td.title { order: 3; flex-basis: 100%; }
+    .t-games td.plat { order: 4; }
+    .t-games td.src { order: 5; }
+    .t-games td.links { order: 6; margin-left: auto; }
+    /* nudges: [check message] / [icons ......... time] */
+    .t-nudge td.check { order: 1; }
+    .t-nudge td.msg { order: 2; flex: 1 1 calc(100% - 3.2rem); }
+    .t-nudge td.links { order: 3; margin-left: 3rem; }
+    .t-nudge td.when { order: 4; margin-left: auto; }
+    /* search: [cover title] / [platform-select Track] */
+    .t-search td.stitle { flex: 1; }
+    .t-search td.action { flex-basis: 100%; text-align: left; }
+    .t-search td.action form { display: flex; width: 100%; }
+    .t-search td.action select { flex: 1; width: auto; }
+    /* playing now: [title hours] / [when] */
+    .t-playing td.date { order: 3; flex-basis: 100%; font-size: .85rem; }
+    /* runs: [date job status] / [detail] */
+    .t-runs td.detail { flex-basis: 100%; }
+  }
 </style>
 </head>
 <body>

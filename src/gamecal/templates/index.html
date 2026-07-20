@@ -36,7 +36,7 @@
 {% endif %}
 
 {% macro nudge_rows(items) %}
-<table class="aligned">
+<table class="aligned t-nudge">
   <colgroup><col class="c-check"><col><col class="c-links"><col class="c-time"></colgroup>
   {% for a in items %}
   <tr>
@@ -46,9 +46,9 @@
         <button title="Done">✔</button>
       </form>
     </td>
-    <td>{{ a['message'] }}</td>
+    <td class="msg">{{ a['message'] }}</td>
     <td class="links">{{ service_icons(a['links']) }}</td>
-    <td class="date muted"><time datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time></td>
+    <td class="when muted"><time datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time></td>
   </tr>
   {% endfor %}
 </table>
@@ -71,7 +71,7 @@
 
 {% if playing %}
 <h2>Playing now</h2>
-<table>
+<table class="t-playing">
   {% for p in playing %}
   <tr>
     <td class="date muted"><time datetime="{{ p.last_iso }}">{{ p.last_iso }}</time></td>
@@ -84,14 +84,14 @@
 
 <h2>Upcoming</h2>
 {% if upcoming %}
-<table class="aligned">
+<table class="aligned t-games">
   {{ game_cols() }}
   {% for g in upcoming %}
   <tr>
     <td class="date {% if g.next.day == today %}today{% elif (g.next.day - today).days <= 14 %}soon{% endif %}">
       {{ g.next.day.strftime('%b %d, %Y') }}
     </td>
-    <td>
+    <td class="title">
       {{ g.title }}
       {% if g.releases | length > 1 %}
         <div class="muted">
@@ -99,10 +99,10 @@
         </div>
       {% endif %}
     </td>
-    <td><span class="pill">{{ g.next.platform }}</span></td>
-    <td><span class="pill">{{ g.source }}</span></td>
+    <td class="plat"><span class="pill">{{ g.next.platform }}</span></td>
+    <td class="src"><span class="pill">{{ g.source }}</span></td>
     <td class="links">{{ service_icons(g.links) }}</td>
-    <td>
+    <td class="act">
       {% if g.watched %}
       <form method="post" action="/unwatch">
         <input type="hidden" name="slug" value="{{ g.slug }}">
@@ -119,16 +119,16 @@
 
 {% if undated or pending %}
 <h2>No date yet</h2>
-<table class="aligned">
+<table class="aligned t-games">
   {{ game_cols() }}
   {% for g in undated %}
   <tr>
-    <td class="date muted">—</td>
-    <td>{{ g.title }}</td>
+    <td class="date muted nodate">—</td>
+    <td class="title">{{ g.title }}</td>
     <td></td>
-    <td><span class="pill">{{ g.source }}</span></td>
+    <td class="src"><span class="pill">{{ g.source }}</span></td>
     <td class="links">{{ service_icons(g.links) }}</td>
-    <td>
+    <td class="act">
       {% if g.watched %}
       <form method="post" action="/unwatch">
         <input type="hidden" name="slug" value="{{ g.slug }}">
@@ -146,29 +146,29 @@
 
 {% if released %}
 <h2>Released</h2>
-<table class="aligned">
+<table class="aligned t-games">
   {{ game_cols() }}
   {% for g in released %}
   <tr>
     <td class="date muted">{{ g.last.day.strftime('%b %d, %Y') }}</td>
-    <td>{{ g.title }}</td>
-    <td><span class="pill">{{ g.last.platform }}</span></td>
-    <td><span class="pill">{{ g.source }}</span></td>
+    <td class="title">{{ g.title }}</td>
+    <td class="plat"><span class="pill">{{ g.last.platform }}</span></td>
+    <td class="src"><span class="pill">{{ g.source }}</span></td>
     <td class="links">{{ service_icons(g.links) }}</td>
-    <td></td>
+    <td class="act"></td>
   </tr>
   {% endfor %}
 </table>
 {% endif %}
 
 <h2>Recent runs</h2>
-<table>
+<table class="t-runs">
   {% for r in runs %}
   <tr>
     <td class="date muted"><time datetime="{{ r['started_at'] }}">{{ r['started_at'] }}</time></td>
     <td>{{ r['job'] }}</td>
     <td>{% if r['status'] == 'ok' %}<span class="muted">ok</span>{% else %}<strong>{{ r['status'] }}</strong>{% endif %}</td>
-    <td class="muted">{{ r['detail'] or '' }}</td>
+    <td class="detail muted">{{ r['detail'] or '' }}</td>
   </tr>
   {% else %}
   <tr><td class="muted">No runs yet.</td></tr>

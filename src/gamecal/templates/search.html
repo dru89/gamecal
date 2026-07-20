@@ -8,12 +8,12 @@
 
 {% if q and not error %}
 <h2>Results for “{{ q }}”</h2>
-<table class="aligned">
+<table class="aligned t-search">
   <colgroup><col class="c-cover"><col><col class="c-action"></colgroup>
   {% for g in results %}
   <tr>
     <td>{% if g.cover_url %}<img class="cover" src="{{ g.cover_url }}" alt="">{% endif %}</td>
-    <td>
+    <td class="stitle">
       <a href="https://backloggd.com/games/{{ g.slug }}/">{{ g.title }}</a>
       {% if g.first_release_date %}
         <span class="muted">({{ g.first_release_date | ts_year }})</span>
