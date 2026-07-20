@@ -28,7 +28,8 @@ class SyncConfig:
 
 @dataclass
 class NotifyConfig:
-    ntfy_url: str = ""  # e.g. https://ntfy.sh/<your-private-topic>
+    ntfy_url: str = ""      # e.g. https://ntfy.sh/<your-private-topic>
+    webhook_url: str = ""   # e.g. a Home Assistant webhook trigger URL
 
 
 @dataclass

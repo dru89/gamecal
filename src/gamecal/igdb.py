@@ -35,6 +35,7 @@ class Igdb:
         self.client = httpx.Client(timeout=30)
         self._token: str | None = None
         self._token_expiry = 0.0
+        self._last_request = 0.0
 
     def _auth(self) -> str:
         if self._token and time.time() < self._token_expiry - 60:
@@ -54,16 +55,27 @@ class Igdb:
         return self._token
 
     def _query(self, endpoint: str, body: str) -> list[dict]:
-        r = self.client.post(
-            f"{API}/{endpoint}",
-            headers={
-                "Client-ID": self.cfg.client_id,
-                "Authorization": f"Bearer {self._auth()}",
-            },
-            content=body,
-        )
-        r.raise_for_status()
-        return r.json()
+        """POST with throttle + 429 backoff. IGDB allows 4 req/s per client;
+        we stay under it and honor Retry-After when we slip anyway."""
+        for attempt in range(4):
+            wait = 0.3 - (time.time() - self._last_request)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_request = time.time()
+            r = self.client.post(
+                f"{API}/{endpoint}",
+                headers={
+                    "Client-ID": self.cfg.client_id,
+                    "Authorization": f"Bearer {self._auth()}",
+                },
+                content=body,
+            )
+            if r.status_code == 429:
+                time.sleep(float(r.headers.get("Retry-After", 1.5 * (attempt + 1))))
+                continue
+            r.raise_for_status()
+            return r.json()
+        raise IgdbError(f"IGDB rate limit on {endpoint}: retries exhausted")
 
     def games_for_steam_appids(self, appids: list[int]) -> dict[int, dict]:
         """Map steam appid -> {igdb_id, slug, name}. Batches of 100."""

@@ -200,3 +200,9 @@ class Ledger:
         return self.conn.execute(
             "SELECT * FROM attention WHERE resolved_at IS NULL ORDER BY id"
         ).fetchall()
+
+    def resolve_attention(self, attention_id: int) -> None:
+        self.conn.execute(
+            "UPDATE attention SET resolved_at = ? WHERE id = ?", (now(), attention_id)
+        )
+        self.conn.commit()

@@ -4,7 +4,14 @@
 {% if attention %}
 <h2>Needs attention</h2>
 {% for a in attention %}
-<div class="attention">[{{ a['kind'] }}] {{ a['message'] }} <span class="muted">{{ a['created_at'] }}</span></div>
+<div class="attention">
+  <form class="dismiss" method="post" action="/attention/resolve">
+    <input type="hidden" name="item_id" value="{{ a['id'] }}">
+    <button title="Dismiss">✕</button>
+  </form>
+  [{{ a['kind'] }}] {{ a['message'] }}
+  <time class="ts" datetime="{{ a['created_at'] }}">{{ a['created_at'] }}</time>
+</div>
 {% endfor %}
 {% endif %}
 
@@ -81,7 +88,7 @@
 <table>
   {% for r in runs %}
   <tr>
-    <td class="date muted">{{ r['started_at'] }}</td>
+    <td class="date muted"><time datetime="{{ r['started_at'] }}">{{ r['started_at'] }}</time></td>
     <td>{{ r['job'] }}</td>
     <td>{% if r['status'] == 'ok' %}<span class="muted">ok</span>{% else %}<strong>{{ r['status'] }}</strong>{% endif %}</td>
     <td class="muted">{{ r['detail'] or '' }}</td>

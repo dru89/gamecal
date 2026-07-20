@@ -34,19 +34,27 @@ def cli(ctx: click.Context, cfg_path: str | None):
 def _notify(ctx: Ctx, title: str, message: str) -> None:
     """Best-effort push via ntfy; never lets notification failure mask the
     original error."""
-    if not ctx.cfg.notify.ntfy_url:
-        return
-    try:
-        import httpx
+    import httpx
 
-        httpx.post(
-            ctx.cfg.notify.ntfy_url,
-            content=message,
-            headers={"Title": title, "Priority": "high", "Tags": "warning"},
-            timeout=10,
-        )
-    except Exception as e:
-        click.echo(f"warning: ntfy push failed: {e!r}", err=True)
+    if ctx.cfg.notify.ntfy_url:
+        try:
+            httpx.post(
+                ctx.cfg.notify.ntfy_url,
+                content=message,
+                headers={"Title": title, "Priority": "high", "Tags": "warning"},
+                timeout=10,
+            )
+        except Exception as e:
+            click.echo(f"warning: ntfy push failed: {e!r}", err=True)
+    if ctx.cfg.notify.webhook_url:
+        try:
+            httpx.post(
+                ctx.cfg.notify.webhook_url,
+                json={"title": title, "message": message},
+                timeout=10,
+            )
+        except Exception as e:
+            click.echo(f"warning: webhook push failed: {e!r}", err=True)
 
 
 def _job(ctx: Ctx, name: str, fn) -> None:

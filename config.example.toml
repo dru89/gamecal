@@ -16,3 +16,7 @@ platforms = ["PC (Microsoft Windows)"]  # IGDB platform names to keep release da
 # Failure pushes. Pick a long random topic name (it is the only auth on ntfy.sh)
 # and subscribe to it in the ntfy iOS app. Leave empty to disable.
 ntfy_url = ""
+# Or (or additionally) a webhook, e.g. a Home Assistant webhook trigger:
+# an automation with a webhook trigger receives {"title": ..., "message": ...}
+# and can forward it to the companion-app notify service.
+webhook_url = ""

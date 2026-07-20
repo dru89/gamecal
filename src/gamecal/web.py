@@ -141,6 +141,11 @@ def create_app(cfg: Config) -> FastAPI:
             ledger.finish_run(run_id, "ok", f"watched {slug}")
         return RedirectResponse(back, status_code=303)
 
+    @app.post("/attention/resolve")
+    def resolve_attention(item_id: int = Form(...)):
+        ledger.resolve_attention(item_id)
+        return RedirectResponse("/", status_code=303)
+
     @app.post("/unwatch")
     def unwatch(slug: str = Form(...), back: str = Form("/")):
         ledger.conn.execute("DELETE FROM kv WHERE key = ?", (f"watch:{slug}",))
