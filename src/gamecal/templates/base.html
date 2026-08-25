@@ -13,6 +13,10 @@
   h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 2rem; color: #aab2c0; }
   nav { display: flex; gap: 1rem; align-items: baseline; margin-bottom: 1.5rem; }
   nav form { margin-left: auto; }
+  nav form.runsync { margin-left: auto; }
+  nav form.runsync + form { margin-left: 0; }
+  .notice { background: #1e2833; border: 1px solid #2f4a63; border-radius: 8px;
+            padding: .6rem .9rem; margin: .4rem 0; }
   input[type=search] { background: #21242c; border: 1px solid #333845; color: inherit;
          border-radius: 6px; padding: .4rem .6rem; width: 220px; }
   a.pill:hover { background: #333845; text-decoration: none; }
@@ -93,6 +97,9 @@
 <body>
 <nav>
   <h1><a href="/">gamecal</a></h1>
+  <form class="runsync" action="/jobs/run" method="post">
+    <button title="Run pull-steam, signals, releases, calendar now">Run sync</button>
+  </form>
   <form action="/search" method="get">
     <input type="search" name="q" placeholder="Search IGDB…" value="{{ q or '' }}">
   </form>

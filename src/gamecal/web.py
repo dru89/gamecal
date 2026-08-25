@@ -6,6 +6,8 @@ IGDB is down or unconfigured.
 """
 
 import json
+import subprocess
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -123,6 +125,29 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
     }
 
 
+JOBS = ("pull-steam", "signals", "releases", "calendar")
+BREAKER_LIMIT = 3  # keep in step with cli.BREAKER_LIMIT
+
+# In-process state for the manual "Run sync" button. Single-user tool:
+# one runner at a time, results land in the ledger like any other run.
+_sync = {"running": False, "started": None, "note": ""}
+_sync_lock = threading.Lock()
+
+
+def _run_pipeline():
+    try:
+        for job in JOBS:
+            r = subprocess.run(["gamecal", job], capture_output=True, text=True, timeout=1800)
+            if r.returncode != 0:
+                _sync["note"] = f"{job} did not finish cleanly — see Errors and Recent runs"
+                return
+        _sync["note"] = ""
+    except Exception as e:
+        _sync["note"] = f"sync runner error: {e!r}"
+    finally:
+        _sync["running"] = False
+
+
 def create_app(cfg: Config) -> FastAPI:
     app = FastAPI(title="gamecal")
     ledger = Ledger(cfg.ledger_path, check_same_thread=False)
@@ -150,7 +175,31 @@ def create_app(cfg: Config) -> FastAPI:
             runs=ledger.recent_runs(10),
             errors=[a for a in items if a["kind"] not in NUDGE_KINDS],
             nudges={k: [a for a in items if a["kind"] == k] for k in NUDGE_KINDS},
+            sync=_sync,
+            tripped=[
+                (j, ledger.breaker_failures(j))
+                for j in JOBS
+                if ledger.breaker_tripped(j, BREAKER_LIMIT)
+            ],
         )
+
+    @app.post("/jobs/run")
+    def run_jobs():
+        with _sync_lock:
+            if not _sync["running"]:
+                _sync.update(
+                    running=True,
+                    started=datetime.now(timezone.utc).isoformat(),
+                    note="",
+                )
+                threading.Thread(target=_run_pipeline, daemon=True).start()
+        return RedirectResponse("/", status_code=303)
+
+    @app.post("/breaker/reset")
+    def reset_breaker(job: str = Form(...)):
+        if job in JOBS:
+            ledger.breaker_reset(job)
+        return RedirectResponse("/", status_code=303)
 
     @app.get("/search", response_class=HTMLResponse)
     def search(q: str = ""):

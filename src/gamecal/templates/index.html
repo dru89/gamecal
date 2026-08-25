@@ -21,6 +21,23 @@
 
 {% block content %}
 
+{% if sync.running %}
+<div class="notice">Sync running (started <time datetime="{{ sync.started }}">{{ sync.started }}</time>) — refresh in a minute or two.</div>
+{% elif sync.note %}
+<div class="attention">{{ sync.note }}</div>
+{% endif %}
+
+{% for job, failures in tripped %}
+<div class="attention">
+  <form class="dismiss" method="post" action="/breaker/reset">
+    <input type="hidden" name="job" value="{{ job }}">
+    <button>Re-enable</button>
+  </form>
+  The <strong>{{ job }}</strong> job is disabled after {{ failures }} consecutive failures.
+  Re-enable it to let the nightly (or Run sync) try again.
+</div>
+{% endfor %}
+
 {% if errors %}
 <h2>Errors</h2>
 {% for a in errors %}
