@@ -446,6 +446,159 @@ def signals(ctx: Ctx):
     _job(ctx, "signals", run)
 
 
+@cli.command("pull-letterboxd")
+@click.pass_obj
+def pull_letterboxd(ctx: Ctx):
+    """Pull the Letterboxd watchlist (scrape) and recent diary (RSS)."""
+    from .letterboxd import Letterboxd
+
+    def run(run_id: int) -> str:
+        if not ctx.cfg.letterboxd.username:
+            return "skipped: letterboxd.username not configured"
+        lbx = Letterboxd(ctx.cfg.letterboxd.username)
+
+        diary = lbx.diary()
+        ctx.ledger.record_observations(run_id, "lbx_diary", diary)
+
+        slugs = lbx.watchlist()
+        rows, fetched = [], 0
+        for slug in slugs:
+            cached = ctx.ledger.get(f"lbx_tmdb:{slug}")
+            if cached is None:
+                tmdb_id = lbx.film_tmdb_id(slug)
+                ctx.ledger.set(f"lbx_tmdb:{slug}", str(tmdb_id or 0))
+                fetched += 1
+            else:
+                tmdb_id = int(cached) or None
+            rows.append({"external_id": slug, "slug": slug, "tmdb_id": tmdb_id})
+        ctx.ledger.record_observations(run_id, "lbx_watchlist", rows)
+        return (
+            f"{len(slugs)} watchlist ({fetched} new id lookups),"
+            f" {len(diary)} recent diary entries"
+        )
+
+    _job(ctx, "pull-letterboxd", run)
+
+
+@cli.command("movie-releases")
+@click.pass_obj
+def movie_releases(ctx: Ctx):
+    """Look up TMDB release dates for watchlisted movies."""
+    from .tmdb import Tmdb
+
+    def run(run_id: int) -> str:
+        if not ctx.cfg.tmdb.api_key:
+            return "skipped: tmdb.api_key not configured"
+        watchlist = ctx.ledger.run_observations("lbx_watchlist")
+        ids = [m["tmdb_id"] for m in watchlist if m.get("tmdb_id")]
+        if not ids:
+            return "nothing to look up — run pull-letterboxd first"
+        tmdb = Tmdb(ctx.cfg.tmdb)
+        rows = []
+        for tmdb_id in ids:
+            info = tmdb.movie_with_releases(tmdb_id)
+            for rel in info["releases"]:
+                rows.append(
+                    {
+                        **rel,
+                        "tmdb_id": tmdb_id,
+                        "title": info["title"],
+                        "external_id": f"{tmdb_id}:{rel['type']}:{rel['date']}",
+                    }
+                )
+            if not info["releases"]:
+                # keep the movie visible as undated: record title only
+                rows.append(
+                    {
+                        "tmdb_id": tmdb_id,
+                        "title": info["title"],
+                        "type": 0,
+                        "type_name": "undated",
+                        "date": "",
+                        "external_id": f"{tmdb_id}:none",
+                    }
+                )
+        ctx.ledger.record_observations(run_id, "tmdb_release", rows)
+        return f"{len(ids)} movies, {len(rows)} release rows"
+
+    _job(ctx, "movie-releases", run)
+
+
+@cli.command("movie-calendar")
+@click.option("--dry-run", is_flag=True, help="Print the plan without touching the calendars")
+@click.pass_obj
+def movie_calendar(ctx: Ctx, dry_run: bool):
+    """Reconcile the Movie Releases and Movies Watched calendars."""
+    from . import gcal, movies
+
+    def run(run_id: int) -> str:
+        if not ctx.cfg.letterboxd.username:
+            return "skipped: letterboxd.username not configured"
+        service = gcal.get_service(ctx.cfg)
+        today = datetime.now(timezone.utc).date()
+        details = []
+        for kv_key, name, desired in (
+            (movies.RELEASES_CAL_KEY, movies.RELEASES_CAL_NAME,
+             movies.desired_release_events(ctx.ledger)),
+            (movies.WATCHED_CAL_KEY, movies.WATCHED_CAL_NAME,
+             movies.desired_watched_events(ctx.ledger)),
+        ):
+            cal_id = gcal.ensure_calendar(service, ctx.ledger, kv_key, name)
+            plan = gcal.reconcile(service, cal_id, desired, today)
+            for ev, _ in plan["create"][:20]:
+                click.echo(f"  + {ev['start']['date']}  {ev['summary']}")
+            if len(plan["create"]) > 20:
+                click.echo(f"  … and {len(plan['create']) - 20} more creates")
+            for ev, cur in plan["update"]:
+                click.echo(f"  ~ {cur['start'].get('date')} -> {ev['start']['date']}  {ev['summary']}")
+            for _, cur in plan["delete"]:
+                click.echo(f"  - {cur['start'].get('date')}  {cur.get('summary')}")
+            counts = (
+                f"{name}: {len(plan['create'])} create, {len(plan['update'])} update,"
+                f" {len(plan['delete'])} delete ({len(desired)} desired)"
+            )
+            if not dry_run:
+                gcal.apply(service, cal_id, plan)
+            details.append(counts)
+        return ("dry-run: " if dry_run else "") + "; ".join(details)
+
+    _job(ctx, "movie-calendar", run)
+
+
+@cli.command("import-diary")
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.pass_obj
+def import_diary(ctx: Ctx, csv_path: str):
+    """One-time backfill from a Letterboxd diary.csv export
+    (letterboxd.com Settings -> Data -> Export). TMDB ids are resolved by
+    title+year search and cached; unresolved rows still get events."""
+    from .letterboxd import diary_key, parse_diary_csv
+    from .tmdb import Tmdb
+
+    def run(run_id: int) -> str:
+        rows = parse_diary_csv(csv_path)
+        tmdb = Tmdb(ctx.cfg.tmdb) if ctx.cfg.tmdb.api_key else None
+        unresolved = 0
+        for row in rows:
+            if tmdb:
+                cache_key = f"tmdb_search:{row['title']}:{row['year']}"
+                cached = ctx.ledger.get(cache_key)
+                if cached is None:
+                    found = tmdb.search_movie(row["title"], row["year"] or None)
+                    ctx.ledger.set(cache_key, str(found or 0))
+                    row["tmdb_id"] = found
+                else:
+                    row["tmdb_id"] = int(cached) or None
+            if not row["tmdb_id"]:
+                unresolved += 1
+            row["external_id"] = diary_key(row["tmdb_id"], row["title"], row["watched"])
+        ctx.ledger.record_observations(run_id, "lbx_diary", rows)
+        note = f", {unresolved} unresolved (title-only events)" if unresolved else ""
+        return f"imported {len(rows)} diary entries{note} — run movie-calendar to create events"
+
+    _job(ctx, "import-diary", run)
+
+
 @cli.command("notify-test")
 @click.pass_obj
 def notify_test(ctx: Ctx):

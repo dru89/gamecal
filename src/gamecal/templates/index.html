@@ -4,8 +4,8 @@
    first, steam last so rows without it stay aligned. "open" is a legacy
    fallback for items recorded before per-service links existed. #}
 {% macro service_icons(links) -%}
-  {%- set domains = {"backloggd": "backloggd.com", "igdb": "igdb.com", "steam": "store.steampowered.com"} -%}
-  {%- for name in ["backloggd", "igdb", "steam"] -%}
+  {%- set domains = {"backloggd": "backloggd.com", "igdb": "igdb.com", "steam": "store.steampowered.com", "letterboxd": "letterboxd.com", "tmdb": "themoviedb.org"} -%}
+  {%- for name in ["backloggd", "igdb", "steam", "letterboxd", "tmdb"] -%}
     {%- if links.get(name) -%}
       <a class="svc" href="{{ links[name] }}" title="{{ name }}"><img src="https://www.google.com/s2/favicons?domain={{ domains[name] }}&sz=32" alt="{{ name }}"></a>
     {%- endif -%}
@@ -186,6 +186,48 @@
   {{ released_rows(released_more) }}
 </details>
 {% endif %}
+{% endif %}
+
+{% if movie_upcoming %}
+<h2>Movies — Upcoming</h2>
+<table class="aligned t-games">
+  {{ game_cols() }}
+  {% for m in movie_upcoming %}
+  <tr>
+    <td class="date {% if m.day == today %}today{% elif (m.day - today).days <= 14 %}soon{% endif %}">
+      {{ m.day.strftime('%b %d, %Y') }}
+    </td>
+    <td class="title">
+      {{ m.title }}
+      {% if m.others %}
+        <div class="muted">
+          {% for d, t in m.others %}<span class="dgroup">{{ d }}: {{ t }}</span>{% endfor %}
+        </div>
+      {% endif %}
+    </td>
+    <td class="plat"><span class="pill">{{ m.type_name }}</span></td>
+    <td class="src"><span class="pill">letterboxd</span></td>
+    <td class="links">{{ service_icons(m.links) }}</td>
+    <td class="act"></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if movie_watched %}
+<h2>Recently watched</h2>
+<table class="t-playing">
+  {% for e in movie_watched %}
+  <tr>
+    <td class="date muted">{{ e.watched }}</td>
+    <td>
+      {% if e.slug %}<a href="https://letterboxd.com/film/{{ e.slug }}/">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}
+      {% if e.rewatch %}<span class="muted">↻</span>{% endif %}
+    </td>
+    <td>{% if e.rating %}<span class="pill">{{ e.rating }}★</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
 {% endif %}
 
 <h2>Recent runs</h2>

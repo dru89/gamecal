@@ -142,20 +142,22 @@ class Ledger:
         ).fetchall()
         return [json.loads(r["payload"]) for r in rows]
 
-    def current_releases(self) -> list[dict]:
-        """Current release rows, scoped per game: for each igdb_id, the rows
-        from the most recent run that observed that game. Full releases runs
-        refresh every tracked game; a single-game web sync refreshes just one
-        without hiding the rest."""
+    def current_releases(self, source: str = "igdb_release",
+                         id_field: str = "igdb_id") -> list[dict]:
+        """Current release rows, scoped per item: for each id, the rows from
+        the most recent run that observed that item. Full runs refresh every
+        tracked item; a single-item web sync refreshes just one without
+        hiding the rest. id_field/source come from code, never user input."""
         rows = self.conn.execute(
-            """
+            f"""
             SELECT o.payload FROM observations o
-            JOIN (SELECT json_extract(payload, '$.igdb_id') AS gid, MAX(run_id) AS mr
-                  FROM observations WHERE source = 'igdb_release'
+            JOIN (SELECT json_extract(payload, '$.{id_field}') AS gid, MAX(run_id) AS mr
+                  FROM observations WHERE source = ?
                   GROUP BY gid) m
-              ON json_extract(o.payload, '$.igdb_id') = m.gid AND o.run_id = m.mr
-            WHERE o.source = 'igdb_release'
-            """
+              ON json_extract(o.payload, '$.{id_field}') = m.gid AND o.run_id = m.mr
+            WHERE o.source = ?
+            """,
+            (source, source),
         ).fetchall()
         return [json.loads(r["payload"]) for r in rows]
 

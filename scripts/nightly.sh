@@ -8,3 +8,6 @@ docker compose run --rm --no-deps job pull-steam
 docker compose run --rm --no-deps job signals
 docker compose run --rm --no-deps job releases
 docker compose run --rm --no-deps job calendar
+docker compose run --rm --no-deps job pull-letterboxd
+docker compose run --rm --no-deps job movie-releases
+docker compose run --rm --no-deps job movie-calendar

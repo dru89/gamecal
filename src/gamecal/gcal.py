@@ -54,16 +54,17 @@ def get_service(cfg: Config, interactive: bool = True):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
-def ensure_calendar(service, ledger: Ledger) -> str:
-    cal_id = ledger.get("gcal:calendar_id")
+def ensure_calendar(service, ledger: Ledger, kv_key: str = "gcal:calendar_id",
+                    summary: str = "Game Releases") -> str:
+    cal_id = ledger.get(kv_key)
     if cal_id:
         try:
             service.calendars().get(calendarId=cal_id).execute()
             return cal_id
         except Exception:
             pass  # deleted out from under us; recreate
-    created = service.calendars().insert(body={"summary": "Game Releases"}).execute()
-    ledger.set("gcal:calendar_id", created["id"])
+    created = service.calendars().insert(body={"summary": summary}).execute()
+    ledger.set(kv_key, created["id"])
     return created["id"]
 
 

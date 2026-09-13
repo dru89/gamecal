@@ -20,3 +20,13 @@ ntfy_url = ""
 # an automation with a webhook trigger receives {"title": ..., "message": ...}
 # and can forward it to the companion-app notify service.
 webhook_url = ""
+
+[letterboxd]
+# Public profile username. Watchlist is scraped nightly (politely); the
+# diary comes from the official RSS feed and CSV export.
+username = ""
+
+[tmdb]
+# Free API key: themoviedb.org -> Settings -> API. Release-date region below.
+api_key = ""
+region = "US"

@@ -27,6 +27,17 @@ class SyncConfig:
 
 
 @dataclass
+class LetterboxdConfig:
+    username: str = ""
+
+
+@dataclass
+class TmdbConfig:
+    api_key: str = ""
+    region: str = "US"
+
+
+@dataclass
 class NotifyConfig:
     ntfy_url: str = ""      # e.g. https://ntfy.sh/<your-private-topic>
     webhook_url: str = ""   # e.g. a Home Assistant webhook trigger URL
@@ -37,6 +48,8 @@ class Config:
     steam: SteamConfig
     igdb: IgdbConfig
     sync: SyncConfig
+    letterboxd: LetterboxdConfig
+    tmdb: TmdbConfig
     notify: NotifyConfig
     data_dir: Path
 
@@ -61,6 +74,8 @@ def load(path: str | os.PathLike | None = None) -> Config:
         steam=SteamConfig(**raw.get("steam", {})),
         igdb=IgdbConfig(**raw.get("igdb", {})),
         sync=SyncConfig(**raw.get("sync", {})),
+        letterboxd=LetterboxdConfig(**raw.get("letterboxd", {})),
+        tmdb=TmdbConfig(**raw.get("tmdb", {})),
         notify=NotifyConfig(**raw.get("notify", {})),
         data_dir=data_dir,
     )

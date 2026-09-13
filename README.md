@@ -35,6 +35,12 @@ shared SQLite ledger, so manual runs and scheduled runs are the same thing.
 - **Instant adds.** Tracking a game from the web UI fetches its dates and
   pushes the calendar event immediately; the nightly reconcile remains the
   authority.
+- **Movies too.** Letterboxd watchlist (polite scrape) + diary (official
+  RSS + CSV backfill) joined against TMDB dates feed two more calendars:
+  **Movie Releases** (theatrical date, or streaming date for digital-only
+  releases, other dates in the description) and **Movies Watched** (your
+  full diary as all-day events — "when did I watch X?" is a calendar
+  search). Requires a free TMDB API key.
 - **Circuit breakers + ntfy.** Three consecutive failures disable a job
   until you reset it, with push notifications via [ntfy](https://ntfy.sh)
   if configured.

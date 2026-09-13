@@ -8,7 +8,7 @@ IGDB is down or unconfigured.
 import json
 import subprocess
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -125,7 +125,45 @@ def _tracked_games(ledger: Ledger, allowlist: list[str]) -> dict:
     }
 
 
-JOBS = ("pull-steam", "signals", "releases", "calendar")
+def _movies(ledger: Ledger) -> dict:
+    """Movie data for the home page: upcoming watchlist releases and the
+    most recent diary entries."""
+    from . import movies as movies_mod
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    by_movie = movies_mod.releases_by_movie(ledger)
+    upcoming = []
+    for m in ledger.run_observations("lbx_watchlist"):
+        tmdb_id = m.get("tmdb_id")
+        rels = [r for r in by_movie.get(tmdb_id, []) if r.get("date")] if tmdb_id else []
+        title = (rels[0].get("title") if rels else None) or m["slug"].replace("-", " ").title()
+        entry = {
+            "title": title,
+            "slug": m["slug"],
+            "links": movies_mod._links(m.get("slug"), tmdb_id),
+        }
+        picked = movies_mod.pick_release(rels) if rels else None
+        if picked and picked[0]["date"] >= today:
+            rel, streaming_only = picked
+            entry["day"] = date.fromisoformat(rel["date"])
+            entry["type_name"] = "streaming" if streaming_only else rel["type_name"]
+            others = sorted({(r["date"], r["type_name"]) for r in rels})
+            entry["others"] = [(d, t) for d, t in others if d != rel["date"] or t != entry["type_name"]]
+            upcoming.append(entry)
+        # released/undated watchlist movies stay on Letterboxd; the site
+        # shows only what belongs on a calendar
+    upcoming.sort(key=lambda e: e["day"])
+
+    watched = sorted(
+        ledger.latest_observations("lbx_diary").values(),
+        key=lambda e: e["watched"],
+        reverse=True,
+    )[:10]
+    return {"movie_upcoming": upcoming, "movie_watched": watched}
+
+
+JOBS = ("pull-steam", "signals", "releases", "calendar",
+        "pull-letterboxd", "movie-releases", "movie-calendar")
 BREAKER_LIMIT = 3  # keep in step with cli.BREAKER_LIMIT
 
 # In-process state for the manual "Run sync" button. Single-user tool:
@@ -172,6 +210,7 @@ def create_app(cfg: Config) -> FastAPI:
         return render(
             "index.html",
             **_tracked_games(ledger, cfg.sync.platforms),
+            **_movies(ledger),
             runs=ledger.recent_runs(10),
             errors=[a for a in items if a["kind"] not in NUDGE_KINDS],
             nudges={k: [a for a in items if a["kind"] == k] for k in NUDGE_KINDS},
