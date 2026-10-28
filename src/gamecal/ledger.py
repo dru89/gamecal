@@ -100,6 +100,13 @@ class Ledger:
             "SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
 
+    def last_ok(self, job: str) -> str | None:
+        """finished_at of the job's most recent successful run."""
+        row = self.conn.execute(
+            "SELECT MAX(finished_at) AS f FROM runs WHERE job = ? AND status = 'ok'", (job,)
+        ).fetchone()
+        return row["f"]
+
     # -- observations -------------------------------------------------------
 
     def record_observations(self, run_id: int, source: str, items: list[dict]) -> None:

@@ -172,6 +172,58 @@ _sync = {"running": False, "started": None, "note": ""}
 _sync_lock = threading.Lock()
 
 
+def _stats(ledger: Ledger, allowlist: list[str]) -> dict:
+    """Flat summary for dashboards (Homepage's customapi widget maps fields
+    by key). Same buckets as the home page. The "*_in" strings are computed
+    here because a bare ISO date parses as UTC midnight in the browser,
+    which skews relative dates by a day west of UTC."""
+    games = _tracked_games(ledger, allowlist)
+    movies = _movies(ledger)
+    today = games["today"]
+
+    def when(day: date) -> str:
+        n = (day - today).days
+        return "today" if n == 0 else "tomorrow" if n == 1 else f"in {n} days"
+
+    out = {
+        "next_game": None, "next_game_platform": None, "next_game_date": None, "next_game_in": None,
+        "next_movie": None, "next_movie_type": None, "next_movie_date": None, "next_movie_in": None,
+    }
+    if games["upcoming"]:
+        g = games["upcoming"][0]
+        out.update(
+            next_game=g["title"],
+            next_game_platform=short_platform(g["next"]["platform"]),
+            next_game_date=g["next"]["day"].isoformat(),
+            next_game_in=when(g["next"]["day"]),
+        )
+    if movies["movie_upcoming"]:
+        m = movies["movie_upcoming"][0]
+        out.update(
+            next_movie=m["title"],
+            next_movie_type=m["type_name"],
+            next_movie_date=m["day"].isoformat(),
+            next_movie_in=when(m["day"]),
+        )
+
+    failures = [ledger.breaker_failures(j) for j in JOBS]
+    tripped = sum(n >= BREAKER_LIMIT for n in failures)
+    failing = sum(0 < n < BREAKER_LIMIT for n in failures)
+    # Oldest of each job's last success: how fresh the slowest source is.
+    last_ok = [ledger.last_ok(j) for j in JOBS]
+    out.update(
+        upcoming_games=len(games["upcoming"]),
+        upcoming_movies=len(movies["movie_upcoming"]),
+        tracked_games=sum(len(games[k]) for k in ("upcoming", "undated", "released", "released_more")),
+        watchlist_movies=len(ledger.run_observations("lbx_watchlist")),
+        attention=len(ledger.open_attention()),
+        breakers_tripped=tripped,
+        sync_status=f"{tripped} tripped" if tripped else f"{failing} failing" if failing else "ok",
+        last_sync=min(last_ok) if all(last_ok) else None,
+    )
+    return out
+
+
 def _run_pipeline():
     try:
         for job in JOBS:
@@ -221,6 +273,10 @@ def create_app(cfg: Config) -> FastAPI:
                 if ledger.breaker_tripped(j, BREAKER_LIMIT)
             ],
         )
+
+    @app.get("/api/stats")
+    def stats():
+        return _stats(ledger, cfg.sync.platforms)
 
     @app.post("/jobs/run")
     def run_jobs():

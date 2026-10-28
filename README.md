@@ -84,6 +84,10 @@ is meant to be called from cron:
 15 4 * * * /path/to/gamecal/scripts/nightly.sh >> /path/to/gamecal/data/nightly.log 2>&1
 ```
 
+`GET /api/stats` returns a flat JSON summary (next game and movie
+release, upcoming and tracked counts, open attention items, breaker state,
+last full sync) for a dashboard tile such as Homepage's `customapi` widget.
+
 Copy `config.toml` and the `data/` directory (ledger, Google client +
 token) when moving hosts — the calendar's ID lives in the ledger, and a
 fresh one would create a duplicate calendar.
